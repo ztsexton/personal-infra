@@ -1,4 +1,3 @@
-# Configure Terraform provider
 terraform {
   required_providers {
     hcloud = {
@@ -8,7 +7,6 @@ terraform {
   }
 }
 
-# Define variables
 variable "hcloud_token" {
   sensitive = true
   type      = string
@@ -20,7 +18,6 @@ variable "ssh_public_key" {
   default = "~/.ssh/id_ed25519_hcloud.pub"
 }
 
-# Configure the Hetzner Cloud Provider
 provider "hcloud" {
   token = var.hcloud_token
 }
