@@ -8,9 +8,15 @@ terraform {
 }
 
 variable "hcloud_token" {
-  sensitive = true
-  type      = string
+  sensitive   = true
+  type        = string
   description = "Hetzner Cloud API Token"
+}
+
+variable "ssh_public_key" {
+  sensitive   = true
+  type        = string
+  description = "Personal SSH key to access VPS"
 }
 
 provider "hcloud" {
@@ -26,11 +32,11 @@ resource "hcloud_ssh_key" "default" {
 # Create VPS resource
 resource "hcloud_server" "vps" {
   name        = "personal-website-vps"
-  server_type = "cpx21"    # Shared 3 AMD CPU + 4GB RAM + 80 GB SSD + 2 TB Traffic
+  server_type = "cpx21" # Shared 3 AMD CPU + 4GB RAM + 80 GB SSD + 2 TB Traffic
   image       = "ubuntu-24.04"
-  location    = "ash"    # Ashburn, VA location
-  
-  ssh_keys    = [hcloud_ssh_key.default.id]
+  location    = "ash" # Ashburn, VA location
+
+  ssh_keys = [hcloud_ssh_key.default.id]
 
   labels = {
     environment = "dev"
