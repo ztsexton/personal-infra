@@ -13,11 +13,6 @@ variable "hcloud_token" {
   description = "Hetzner Cloud API Token"
 }
 
-variable "ssh_public_key" {
-  type    = string
-  default = "~/.ssh/id_ed25519_hcloud.pub"
-}
-
 provider "hcloud" {
   token = var.hcloud_token
 }
