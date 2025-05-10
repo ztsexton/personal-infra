@@ -15,7 +15,7 @@ variable "hcloud_token" {
   description = "Hetzner Cloud API Token"
 }
 
-variable "ssh_key_path" {
+variable "ssh_public_key" {
   type    = string
   default = "~/.ssh/id_ed25519_hcloud.pub"
 }
@@ -28,7 +28,7 @@ provider "hcloud" {
 # Create SSH key resource
 resource "hcloud_ssh_key" "default" {
   name       = "default-ssh-key"
-  public_key = file(var.ssh_key_path)
+  public_key = var.ssh_key_path
 }
 
 # Create VPS resource
