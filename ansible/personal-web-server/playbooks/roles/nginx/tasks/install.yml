@@ -59,6 +59,11 @@
     mode: '0644'
   when: nginx_check.rc != 0
 
+- name: Update apt cache
+  apt:
+    update_cache: yes
+  when: nginx_check.rc != 0
+  
 - name: Install NGINX
   apt:
     name: nginx
