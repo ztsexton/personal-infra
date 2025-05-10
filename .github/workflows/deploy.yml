@@ -9,35 +9,14 @@ jobs:
   configure-nginx:
     runs-on: ubuntu-latest
 
-    env:
-      SCALR_TOKEN: ${{ secrets.SCALR_TOKEN }}
-
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-
-    - name: Set up Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: 1.5.7
-
-    - name: Write Scalr credentials file
-      run: |
-        mkdir -p $HOME/.terraform.d
-        echo '{"credentials":{"zsexton.scalr.io":{"token":"'"${{ secrets.SCALR_TOKEN }}"'"}}}' \
-          > $HOME/.terraform.d/credentials.tfrc.json
-
-    - name: Export Terraform outputs
-      working-directory: terraform
-      run: |
-        terraform -chdir=infra init
-        terraform -chdir=infra output -json
 
     - name: Install Ansible
       run: |
         sudo apt-get update
         sudo apt-get install -y ansible python3-jmespath
-        chmod +x ansible/inventory/scalr_inventory.py
 
     - name: Add SSH key
       uses: webfactory/ssh-agent@v0.9.0
@@ -47,13 +26,13 @@ jobs:
     - name: Ansible check‑mode (dry run)
       run: |
         ansible-playbook \
-          -i ansible/inventory/scalr_inventory.py \
+          -i ansible/inventory/hosts.ini \
           ansible/personal-web-server/playbooks/site.yml \
           --check --diff
 
     - name: Apply configuration
       run: |
         ansible-playbook \
-          -i ansible/inventory/scalr_inventory.py \
+          -i ansible/inventory/hosts.ini \
           ansible/personal-web-serverplaybooks/site.yml \
           --diff
