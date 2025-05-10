@@ -24,8 +24,8 @@ provider "hcloud" {
 
 # Create SSH key resource
 resource "hcloud_ssh_key" "default" {
-  name       = "default-ssh-key"
-  public_key = var.ssh_key_path
+  name       = "personal_hcloud_ssh_key"
+  public_key = var.ssh_public_key
 }
 
 # Create VPS resource
