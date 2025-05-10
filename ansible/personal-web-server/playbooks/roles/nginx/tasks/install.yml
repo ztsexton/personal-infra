@@ -41,12 +41,35 @@
   changed_when: false
   failed_when: "'573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62' not in gpg_check.stdout"
 
+- name: Debug distribution release
+  debug:
+    msg: "Distribution: {{ ansible_distribution_release }}"
+
+- name: Check repository file
+  stat:
+    path: /etc/apt/sources.list.d/nginx.list
+  register: repo_file
+
+- name: Debug repository file
+  debug:
+    msg: "Repository file exists: {{ repo_file.stat.exists }}"
+
+- name: Display repository content
+  shell: cat /etc/apt/sources.list.d/nginx.list
+  register: repo_content
+  when: repo_file.stat.exists
+  changed_when: false
+
+- name: Debug repository content
+  debug:
+    msg: "{{ repo_content.stdout_lines | default('No repo file') }}"
+
 - name: Add NGINX repository
   apt_repository:
     repo: "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/ubuntu {{ ansible_distribution_release }} nginx"
     filename: nginx
     state: present
-    update_cache: no
+    update_cache: yes  # Changed to yes to ensure immediate update
 
 - name: Configure NGINX repository pinning
   copy:
@@ -58,14 +81,16 @@
       Pin-Priority: 900
     mode: '0644'
 
-- name: Update apt cache
+- name: Force apt cache update
   apt:
     update_cache: yes
+    cache_valid_time: 0  # Force update regardless of cache age
 
 - name: Install NGINX
   apt:
     name: nginx
     state: present
+    update_cache: no
 
 - name: Ensure doc roots exist
   file:
