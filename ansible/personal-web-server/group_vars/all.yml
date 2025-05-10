@@ -1,0 +1,7 @@
+# One list entry per virtual host you want on this server.
+sites:
+  - server_name: zachsexton.com
+    root: /var/www/zachsexton.com/html
+
+  - server_name: petfoodfinder.app
+    root: /var/www/petfoodfinder.app/html=

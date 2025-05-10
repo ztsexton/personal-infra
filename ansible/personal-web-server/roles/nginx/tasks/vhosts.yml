@@ -1,0 +1,18 @@
+---
+- name: Deploy virtual‑host configs
+  template:
+    src: vhost.conf.j2
+    dest: "/etc/nginx/sites-available/{{ item.server_name }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  loop: "{{ sites }}"
+  notify: reload nginx
+
+- name: Enable sites
+  file:
+    src: "/etc/nginx/sites-available/{{ item.server_name }}.conf"
+    dest: "/etc/nginx/sites-enabled/{{ item.server_name }}.conf"
+    state: link
+  loop: "{{ sites }}"
+  notify: reload nginx

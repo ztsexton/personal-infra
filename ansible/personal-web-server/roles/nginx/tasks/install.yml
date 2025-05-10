@@ -1,0 +1,15 @@
+---
+- name: Install NGINX
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+
+- name: Ensure doc roots exist
+  file:
+    path: "{{ item.root }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+  loop: "{{ sites }}"
