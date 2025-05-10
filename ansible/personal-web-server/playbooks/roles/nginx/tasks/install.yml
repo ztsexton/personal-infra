@@ -1,6 +1,4 @@
 ---
-# install curl gnupg2 ca-certificates lsb-release ubuntu-keyring
-# - name: Install dependencies
 - name: Check if NGINX is installed
   command: dpkg-query -W nginx
   register: nginx_check
@@ -23,14 +21,13 @@
   stat:
     path: /usr/share/keyrings/nginx-archive-keyring.gpg
   register: nginx_key
-  when: not nginx_key.stat.exists
 
 - name: Download NGINX signing key
   get_url:
     url: https://nginx.org/keys/nginx_signing.key
     dest: /tmp/nginx_signing.key
     mode: '0644'
-
+  when: not nginx_key.stat.exists
 
 - name: Import NGINX signing key
   shell: cat /tmp/nginx_signing.key | gpg --dearmor > /usr/share/keyrings/nginx-archive-keyring.gpg
