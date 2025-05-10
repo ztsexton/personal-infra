@@ -5,6 +5,7 @@
   failed_when: false
   changed_when: false
 
+# Prerequisites are always needed for repository management
 - name: Install prerequisites
   apt:
     name:
@@ -15,7 +16,6 @@
       - ubuntu-keyring
     state: present
     update_cache: yes
-  when: nginx_check.rc != 0
 
 - name: Check if NGINX signing key exists
   stat:
@@ -46,7 +46,7 @@
     repo: "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/ubuntu {{ ansible_distribution_release }} nginx"
     filename: nginx
     state: present
-  when: nginx_check.rc != 0
+    update_cache: no
 
 - name: Configure NGINX repository pinning
   copy:
@@ -57,18 +57,15 @@
       Pin: release o=nginx
       Pin-Priority: 900
     mode: '0644'
-  when: nginx_check.rc != 0
 
 - name: Update apt cache
   apt:
     update_cache: yes
-  when: nginx_check.rc != 0
-  
+
 - name: Install NGINX
   apt:
     name: nginx
     state: present
-    update_cache: yes
 
 - name: Ensure doc roots exist
   file:
