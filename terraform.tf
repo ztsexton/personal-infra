@@ -1,0 +1,52 @@
+# Configure Terraform provider
+terraform {
+  required_providers {
+    hcloud = {
+      source  = "hetznercloud/hcloud"
+      version = "~> 1.45"
+    }
+  }
+}
+
+# Define variables
+variable "hcloud_token" {
+  sensitive = true
+  type      = string
+  description = "Hetzner Cloud API Token"
+}
+
+variable "ssh_key_path" {
+  type    = string
+  default = "~/.ssh/id_ed25519_hcloud.pub"
+}
+
+# Configure the Hetzner Cloud Provider
+provider "hcloud" {
+  token = var.hcloud_token
+}
+
+# Create SSH key resource
+resource "hcloud_ssh_key" "default" {
+  name       = "default-ssh-key"
+  public_key = file(var.ssh_key_path)
+}
+
+# Create VPS resource
+resource "hcloud_server" "vps" {
+  name        = "personal-website-vps"
+  server_type = "cpx21"    # Shared 3 AMD CPU + 4GB RAM + 80 GB SSD + 2 TB Traffic
+  image       = "ubuntu-24.04"
+  location    = "ash"    # Ashburn, VA location
+  
+  ssh_keys    = [hcloud_ssh_key.default.id]
+
+  labels = {
+    environment = "dev"
+    type        = "vps"
+  }
+}
+
+# Output the VPS's IP address
+output "vps_ip" {
+  value = hcloud_server.vps.ipv4_address
+}
