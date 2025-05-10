@@ -16,7 +16,7 @@ variable "hcloud_token" {
 variable "ssh_public_key" {
   sensitive   = true
   type        = string
-  description = "Personal SSH key to access VPS"
+  description = "Automation ssh public key"
 }
 
 provider "hcloud" {
