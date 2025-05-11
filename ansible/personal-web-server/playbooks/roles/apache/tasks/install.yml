@@ -13,24 +13,11 @@
     state: present
     update_cache: yes
 
-- name: Check if systemd is available
-  stat:
-    path: /bin/systemctl
-  register: systemd_check
-
-- name: Start and enable Apache (systemd)
-  systemd:
-    name: apache2
-    state: started
-    enabled: yes
-  when: systemd_check.stat.exists
-
-- name: Start and enable Apache (service)
-  service:
-    name: apache2
-    state: started
-    enabled: yes
-  when: not systemd_check.stat.exists
+# Use direct commands to manage Apache instead of relying on systemd/service
+- name: Start Apache (direct command)
+  command: /usr/sbin/apache2ctl start
+  ignore_errors: yes
+  changed_when: false
 
 - name: Wait for Apache to be up
   wait_for:
@@ -40,13 +27,19 @@
   ignore_errors: yes
 
 - name: Enable required Apache modules
-  apache2_module:
-    name: "{{ item }}"
-    state: present
+  command: "a2enmod {{ item }}"
+  args:
+    creates: "/etc/apache2/mods-enabled/{{ item }}.load"
   loop:
     - rewrite
     - ssl
-  notify: restart apache
+  register: modules_enabled
+  changed_when: modules_enabled.changed
+
+- name: Restart Apache after enabling modules
+  command: /usr/sbin/apache2ctl restart
+  when: modules_enabled.changed
+  changed_when: false
 
 - name: Ensure doc roots exist
   file:
