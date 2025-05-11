@@ -1,6 +1,6 @@
 ---
-- name: Configure NGINX multi‑site host
+- name: Configure Apache multi-site host
   hosts: all
   become: yes
   roles:
-    - nginx
+    - apache

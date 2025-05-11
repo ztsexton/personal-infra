@@ -1,4 +1,4 @@
-name: Deploy NGINX configuration
+name: Deploy Apache configuration
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:            
 
 jobs:
-  configure-nginx:
+  configure-apache:
     runs-on: ubuntu-latest
 
     steps:
@@ -39,5 +39,5 @@ jobs:
       run: |
         ansible-playbook \
           -i ansible/inventory/hosts.ini \
-          ansible/personal-web-serverplaybooks/site.yml \
+          ansible/personal-web-server/playbooks/site.yml \
           --diff

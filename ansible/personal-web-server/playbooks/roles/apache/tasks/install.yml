@@ -1,0 +1,52 @@
+---
+- name: Check if Apache is installed
+  command: dpkg-query -W apache2
+  register: apache_check
+  failed_when: false
+  changed_when: false
+
+- name: Install Apache2 and required modules
+  apt:
+    name:
+      - apache2
+      - libapache2-mod-php
+    state: present
+    update_cache: yes
+
+- name: Enable required Apache modules
+  apache2_module:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - rewrite
+    - ssl
+  notify: restart apache
+
+- name: Ensure doc roots exist
+  file:
+    path: "{{ item.root }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+  loop: "{{ sites }}"
+
+- name: Create a default index.html for each site
+  copy:
+    dest: "{{ item.root }}/index.html"
+    content: |
+      <!DOCTYPE html>
+      <html>
+      <head>
+          <title>Welcome to {{ item.server_name }}</title>
+      </head>
+      <body>
+          <h1>Welcome to {{ item.server_name }}</h1>
+          <p>If you see this page, Apache is successfully installed and working for this virtual host.</p>
+      </body>
+      </html>
+    owner: www-data
+    group: www-data
+    mode: "0644"
+  loop: "{{ sites }}"
+  when: item.create_index | default(true)
