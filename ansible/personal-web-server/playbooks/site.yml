@@ -2,5 +2,7 @@
 - name: Configure Apache multi-site host
   hosts: all
   become: yes
+  vars_files:
+    - ../group_vars/all.yml
   roles:
     - apache
