@@ -1,10 +1,30 @@
 ---
-- name: restart apache
-  systemd:
-    name: "{{ apache_service_name | default('apache2') }}"
-    state: restarted
+- name: Check if systemd is available
+  stat:
+    path: /bin/systemctl
+  register: systemd_check
+  check_mode: no
 
-- name: reload apache
+- name: restart apache (systemd)
   systemd:
-    name: "{{ apache_service_name | default('apache2') }}"
+    name: apache2
+    state: restarted
+  when: systemd_check.stat.exists
+
+- name: restart apache (service)
+  service:
+    name: apache2
+    state: restarted
+  when: not systemd_check.stat.exists
+  
+- name: reload apache (systemd)
+  systemd:
+    name: apache2
     state: reloaded
+  when: systemd_check.stat.exists
+
+- name: reload apache (service)
+  service:
+    name: apache2
+    state: reloaded
+  when: not systemd_check.stat.exists
