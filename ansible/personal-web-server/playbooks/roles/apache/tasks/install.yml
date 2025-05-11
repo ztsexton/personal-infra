@@ -11,12 +11,12 @@
       - apache2
       - libapache2-mod-php
     state: present
-    update_cache: yes
+    update_cache: true
 
 # Use direct commands to manage Apache instead of relying on systemd/service
 - name: Start Apache (direct command)
   command: /usr/sbin/apache2ctl start
-  ignore_errors: yes
+  ignore_errors: true
   changed_when: false
 
 - name: Wait for Apache to be up
@@ -24,7 +24,7 @@
     path: /var/run/apache2/apache2.pid
     state: present
     timeout: 10
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Enable required Apache modules
   command: "a2enmod {{ item }}"

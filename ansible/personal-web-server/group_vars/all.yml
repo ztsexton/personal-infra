@@ -4,4 +4,4 @@ sites:
     root: /var/www/zachsexton.com/html
 
   - server_name: petfoodfinder.app
-    root: /var/www/petfoodfinder.app/html=
+    root: /var/www/petfoodfinder.app/html
