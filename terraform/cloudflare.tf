@@ -7,18 +7,18 @@ provider "cloudflare" {
 resource "cloudflare_record" "zachsexton_root" {
   zone_id = var.cloudflare_zone_id_zachsexton
   name    = "@"
-  value   = hcloud_server.vps.ipv4_address
+  content = hcloud_server.vps.ipv4_address
   type    = "A"
-  ttl     = 3600  # 1 hour
+  ttl     = 1  # Must be 1 when proxied is true
   proxied = true  # Enable Cloudflare proxy
 }
 
 resource "cloudflare_record" "petfoodfinder_root" {
   zone_id = var.cloudflare_zone_id_petfoodfinder
   name    = "@"
-  value   = hcloud_server.vps.ipv4_address
+  content = hcloud_server.vps.ipv4_address
   type    = "A"
-  ttl     = 3600  # 1 hour
+  ttl     = 1  # Must be 1 when proxied is true
   proxied = true  # Enable Cloudflare proxy
 }
 
