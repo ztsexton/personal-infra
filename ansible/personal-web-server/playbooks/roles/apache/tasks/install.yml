@@ -13,9 +13,25 @@
     state: present
     update_cache: yes
 
+- name: Check Apache service name
+  shell: "systemctl list-units --type=service | grep -E 'apache|httpd' | awk '{print $1}'"
+  register: apache_service
+  changed_when: false
+  failed_when: false
+
+- name: Set Apache service facts
+  set_fact:
+    apache_service_name: "{{ apache_service.stdout | regex_search('(apache2|httpd|apache).*\\.service') | regex_replace('\\.service$', '') }}"
+  when: apache_service.stdout | length > 0
+
+- name: Set default Apache service name if not found
+  set_fact:
+    apache_service_name: "apache2"
+  when: apache_service.stdout | length == 0
+
 - name: Ensure Apache service is started and enabled
   systemd:
-    name: apache2
+    name: "{{ apache_service_name }}"
     state: started
     enabled: yes
 
