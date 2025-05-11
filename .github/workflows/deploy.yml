@@ -2,7 +2,9 @@ name: Deploy Apache configuration
 
 on:
   push:
-    branches: [ master ]          
+    branches: [ master ]
+    paths:
+      - 'ansible/**'
   workflow_dispatch:            
 
 jobs:
