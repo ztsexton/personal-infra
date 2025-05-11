@@ -13,6 +13,12 @@
     state: present
     update_cache: yes
 
+- name: Ensure Apache service is started and enabled
+  systemd:
+    name: apache2
+    state: started
+    enabled: yes
+
 - name: Enable required Apache modules
   apache2_module:
     name: "{{ item }}"
