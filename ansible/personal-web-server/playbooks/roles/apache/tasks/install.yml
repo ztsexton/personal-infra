@@ -50,6 +50,16 @@
     mode: "0755"
   loop: "{{ sites }}"
 
+- name: Ensure font-helper directory exists with correct permissions
+  file:
+    path: /root/font-helper
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+  when: "'zachsexton.com' in item.server_name"
+  loop: "{{ sites }}"
+
 - name: Create a default index.html for each site
   copy:
     dest: "{{ item.root }}/index.html"
