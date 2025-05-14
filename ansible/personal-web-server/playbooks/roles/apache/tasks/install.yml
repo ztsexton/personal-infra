@@ -52,7 +52,7 @@
 
 - name: Ensure font-helper directory exists with correct permissions
   file:
-    path: /root/font-helper
+    path: "/var/www/zachsexton.com/font-helper"
     state: directory
     owner: www-data
     group: www-data
