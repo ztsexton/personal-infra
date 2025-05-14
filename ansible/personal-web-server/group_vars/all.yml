@@ -4,7 +4,7 @@ sites:
     root: /var/www/zachsexton.com/html
     aliases:
       - path: /font-helper
-        directory: /home/root/font-helper
+        directory: /root/font-helper
 
   - server_name: petfoodfinder.app
     root: /var/www/petfoodfinder.app/html
