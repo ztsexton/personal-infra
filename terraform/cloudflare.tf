@@ -22,6 +22,15 @@ resource "cloudflare_record" "petfoodfinder_root" {
   proxied = true  # Enable Cloudflare proxy
 }
 
+resource "cloudflare_record" "vigilo_root" {
+  zone_id = var.cloudflare_zone_id_vigilo
+  name    = "@"
+  content = hcloud_server.vps.ipv4_address
+  type    = "A"
+  ttl     = 1  # Must be 1 when proxied is true
+  proxied = true  # Enable Cloudflare proxy
+}
+
 # Variables for Cloudflare configuration
 variable "cloudflare_api_token" {
   sensitive   = true
@@ -37,4 +46,9 @@ variable "cloudflare_zone_id_zachsexton" {
 variable "cloudflare_zone_id_petfoodfinder" {
   type        = string
   description = "Cloudflare Zone ID for petfoodfinder.app"
+}
+
+variable "cloudflare_zone_id_vigilo" {
+  type        = string
+  description = "Cloudflare Zone ID for vigilo.dev"
 }
