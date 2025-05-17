@@ -5,6 +5,8 @@ sites:
     aliases:
       - path: /font-helper
         directory: /var/www/zachsexton.com/font-helper
+      - path: /music-butler
+        directory: /var/www/zachsexton.com/music-butler
 
   - server_name: petfoodfinder.app
     root: /var/www/petfoodfinder.app/html
