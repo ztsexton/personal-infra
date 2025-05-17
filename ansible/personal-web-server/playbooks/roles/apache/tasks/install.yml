@@ -60,6 +60,18 @@
   when: "'zachsexton.com' in item.server_name"
   loop: "{{ sites }}"
 
+
+- name: Ensure music-butler directory exists with correct permissions
+  file:
+    path: "/var/www/zachsexton.com/music-butler"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: "0755"
+  when: "'zachsexton.com' in item.server_name"
+  loop: "{{ sites }}"
+
+
 - name: Create a default index.html for each site
   copy:
     dest: "{{ item.root }}/index.html"
