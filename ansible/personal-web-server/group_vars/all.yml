@@ -10,3 +10,6 @@ sites:
 
   - server_name: petfoodfinder.app
     root: /var/www/petfoodfinder.app/html
+
+  - server_name: vigilo.dev
+    root: /var/www/vigilo.dev/html

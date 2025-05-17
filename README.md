@@ -30,11 +30,13 @@ The infrastructure is managed using Terraform with state stored in Scalr. Key co
 ### Resources Managed
 
 #### Hetzner Cloud
+
 - VPS instance (Ubuntu 24.04)
 - SSH key management
 - Network configuration
 
 #### Cloudflare
+
 - DNS records for domains:
   - zachsexton.com
   - petfoodfinder.app
@@ -45,7 +47,7 @@ The infrastructure is managed using Terraform with state stored in Scalr. Key co
 
 ### Directory Structure
 
-```
+```text
 ansible/
 ├── inventory/
 │   └── hosts.ini           # Server inventory
@@ -59,8 +61,10 @@ ansible/
 ### Virtual Hosts
 
 Apache is configured to serve multiple domains:
+
 - zachsexton.com
 - petfoodfinder.app
+- vigilo.dev
 
 ### Running Manually
 
@@ -71,11 +75,13 @@ ansible-playbook -i ansible/inventory/hosts.ini ansible/personal-web-server/play
 ## Scalr Integration
 
 Scalr is used as the Terraform backend to:
+
 - Store and version Terraform state
 - Manage infrastructure changes
 - Provide a collaborative environment for infrastructure management
 
 Configuration:
+
 ```hcl
 terraform {
   backend "remote" {
@@ -97,6 +103,7 @@ Automated deployment pipeline for Apache configuration changes:
   - Manual workflow dispatch
 
 Pipeline Steps:
+
 1. Checkout code
 2. Install Ansible
 3. Configure SSH access
@@ -117,6 +124,7 @@ Pipeline Steps:
 ## Scripts
 
 The `scripts/` directory contains utility scripts:
+
 - `personal-web-server.sh`: Quick SSH access to the web server
 
 ## Getting Started
@@ -129,12 +137,15 @@ The `scripts/` directory contains utility scripts:
    - Cloudflare API token and zone IDs
    - SSH keys
 3. For local Terraform runs (optional, as Scalr handles this automatically):
+
    ```bash
    cd terraform
    terraform init
    terraform apply
    ```
+
 4. For local Ansible runs (optional, as GitHub Actions handles this automatically):
+
    ```bash
    ansible-playbook -i ansible/inventory/hosts.ini ansible/personal-web-server/playbooks/site.yml
    ```
@@ -142,11 +153,13 @@ The `scripts/` directory contains utility scripts:
 ### Automated Workflows
 
 #### Terraform Changes (via Scalr)
+
 - Opening a Pull Request triggers a Scalr plan
 - Merging to `master` or pushing directly to `master` triggers a Scalr apply
 - Plans and applies can be monitored in the Scalr UI at `zsexton.scalr.io`
 
 #### Ansible Changes (via GitHub Actions)
+
 - Changes to files under `ansible/**` automatically trigger the configuration deployment
 - The GitHub Action will:
   1. Run a dry-run (check mode) first
