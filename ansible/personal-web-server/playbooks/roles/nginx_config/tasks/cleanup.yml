@@ -5,12 +5,13 @@
     state: present
     update_cache: yes
 
-- name: Stop and disable Apache
-  service:
-    name: apache2
-    state: stopped
-    enabled: no
-  ignore_errors: yes
+- name: Enable and start NGINX service
+  ansible.builtin.systemd:
+    name: nginx
+    state: started
+    enabled: yes
+    daemon_reload: yes
+
 
 - name: Create directory for Let's Encrypt verification
   file:
