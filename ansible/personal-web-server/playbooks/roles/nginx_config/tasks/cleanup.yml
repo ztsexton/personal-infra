@@ -48,6 +48,47 @@
     mode: '0755'
     recurse: yes
 
+# Ensure both www-data and nginx users exist
+- name: Check if www-data user exists
+  ansible.builtin.getent:
+    database: passwd
+    key: www-data
+  register: www_data_user_exists
+  failed_when: false
+
+- name: Create www-data user if it doesn't exist
+  ansible.builtin.user:
+    name: www-data
+    shell: /usr/sbin/nologin
+    system: yes
+    createhome: no
+    comment: "Web Server User"
+  when: www_data_user_exists.failed or www_data_user_exists.item.stdout == ""
+
+- name: Check if nginx user exists
+  ansible.builtin.getent:
+    database: passwd
+    key: nginx
+  register: nginx_user_exists
+  failed_when: false
+
+- name: Create nginx user if it doesn't exist
+  ansible.builtin.user:
+    name: nginx
+    shell: /usr/sbin/nologin
+    system: yes
+    createhome: no
+    comment: "NGINX web server"
+  when: nginx_user_exists.failed or nginx_user_exists.item.stdout == ""
+
+- name: Ensure nginx.conf uses the correct user
+  ansible.builtin.lineinfile:
+    path: /etc/nginx/nginx.conf
+    regexp: '^user\s+'
+    line: 'user www-data;'
+    insertbefore: BOF
+  register: nginx_conf_modified
+
 # Make sure ports 80 and 443 are free
 - name: Check for processes listening on port 80
   ansible.builtin.shell: ss -tulpn | grep ':80 '
@@ -80,6 +121,29 @@
 - name: Show nginx binary status
   ansible.builtin.debug:
     msg: "NGINX binary exists: {{ nginx_binary.stat.exists }}"
+
+# Add explicit task to verify nginx configuration before attempting to start
+- name: Verify nginx configuration file is accurate
+  ansible.builtin.command: nginx -t
+  register: nginx_config_test
+  changed_when: false
+  failed_when: false
+  when: nginx_binary.stat.exists
+
+- name: Display nginx configuration test results
+  ansible.builtin.debug:
+    msg: "{{ nginx_config_test.stdout_lines + nginx_config_test.stderr_lines }}"
+  when: nginx_binary.stat.exists and nginx_config_test.rc != 0
+
+# Restart nginx service if configuration was modified or test failed
+- name: Restart nginx service if configuration was modified
+  ansible.builtin.service:
+    name: nginx
+    state: restarted
+  when: >
+    nginx_binary.stat.exists and 
+    (nginx_conf_modified.changed or 
+    (nginx_config_test.rc != 0 and "'getpwnam(\"nginx\")' in nginx_config_test.stderr"))
 
 # Ensure NGINX is running
 - name: Enable and start NGINX service
