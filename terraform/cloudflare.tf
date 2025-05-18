@@ -47,7 +47,10 @@ resource "cloudflare_zone_settings_override" "zachsexton_settings" {
     ignore_changes = [
       settings.0.proxy_read_timeout,
       settings.0.polish,
-      # Add other read-only settings if they cause issues
+      settings.0.response_buffering,
+      settings.0.image_resizing,
+      settings.0.prefetch_preload,
+      # Any other read-only settings that cause issues
     ]
   }
 }
@@ -68,7 +71,10 @@ resource "cloudflare_zone_settings_override" "petfoodfinder_settings" {
     ignore_changes = [
       settings.0.proxy_read_timeout,
       settings.0.polish,
-      # Add other read-only settings if they cause issues
+      settings.0.response_buffering,
+      settings.0.image_resizing,
+      settings.0.prefetch_preload,
+      # Any other read-only settings that cause issues
     ]
   }
 }
@@ -89,7 +95,10 @@ resource "cloudflare_zone_settings_override" "vigilo_settings" {
     ignore_changes = [
       settings.0.proxy_read_timeout,
       settings.0.polish,
-      # Add other read-only settings if they cause issues
+      settings.0.response_buffering,
+      settings.0.image_resizing,
+      settings.0.prefetch_preload,
+      # Any other read-only settings that cause issues
     ]
   }
 }
