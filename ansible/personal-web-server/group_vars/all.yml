@@ -16,3 +16,11 @@ sites:
   - server_name: vigilo.dev
     root: /var/www/vigilo.dev/html
     certbot_email: webmaster@vigilo.dev
+
+# Certbot configuration
+certbot:
+  use_staging: false  # Set to true for testing
+  webroot_path: /var/www/html  # Default webroot path
+  standalone: false  # Use standalone mode instead of Apache plugin
+  create_if_missing: true  # Only create certificates if they don't exist
+  renew_hook: "systemctl reload apache2"  # Command to run after successful renewal

@@ -4,29 +4,92 @@
     name: 
       - certbot
       - python3-certbot-apache
+      - python3-certbot-dns-cloudflare  # Adding DNS plugin for verification
     state: present
     update_cache: yes
+
+- name: Ensure Apache modules for SSL are enabled
+  apache2_module:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - ssl
+    - rewrite
+    - headers
+  notify: restart apache
+
+- name: Create webroot directory for HTTP challenge if needed
+  file:
+    path: "{{ certbot.webroot_path | default('/var/www/html') }}/.well-known/acme-challenge"
+    state: directory
+    mode: 0755
+    owner: www-data
+    group: www-data
+    recurse: yes
+  when: not certbot.standalone | default(false)
 
 - name: Check if certificates already exist
   stat:
     path: "/etc/letsencrypt/live/{{ item.server_name }}/cert.pem"
   register: cert_exists
   loop: "{{ sites }}"
+  ignore_errors: yes
 
-- name: Obtain certificates for domains
+- name: Temporarily stop Apache if using standalone mode
+  service:
+    name: apache2
+    state: stopped
+  when: certbot.standalone | default(false)
+  register: apache_stopped
+
+- name: Obtain certificates for domains (webroot method)
   command: >
-    certbot --apache --non-interactive --agree-tos 
-    --email {{ item.item.certbot_email | default('webmaster@' + item.item.server_name) }} 
-    --domains {{ item.item.server_name }} 
-    --redirect
+    certbot certonly --webroot
+    {{ '--staging' if certbot.use_staging | default(false) else '' }}
+    --non-interactive --agree-tos 
+    --email {{ item.item.certbot_email | default('webmaster@' + item.item.server_name) }}
+    --webroot-path {{ certbot.webroot_path | default('/var/www/html') }}
+    -d {{ item.item.server_name }}
+    --cert-name {{ item.item.server_name }}
   loop: "{{ cert_exists.results }}"
-  when: not item.stat.exists
-  notify: restart apache
+  when: 
+    - not item.stat.exists | default(false) 
+    - certbot.create_if_missing | default(true)
+    - not certbot.standalone | default(false)
+  register: certbot_webroot_result
+  ignore_errors: yes
+
+- name: Obtain certificates for domains (standalone method)
+  command: >
+    certbot certonly --standalone
+    {{ '--staging' if certbot.use_staging | default(false) else '' }}
+    --non-interactive --agree-tos 
+    --email {{ item.item.certbot_email | default('webmaster@' + item.item.server_name) }}
+    -d {{ item.item.server_name }}
+    --cert-name {{ item.item.server_name }}
+  loop: "{{ cert_exists.results }}"
+  when: 
+    - not item.stat.exists | default(false) 
+    - certbot.create_if_missing | default(true)
+    - certbot.standalone | default(false)
+  register: certbot_standalone_result
+  ignore_errors: yes
+
+- name: Restart Apache if it was stopped
+  service:
+    name: apache2
+    state: started
+  when: apache_stopped.changed | default(false)
+
+- name: Configure Apache for SSL (manual method)
+  include_tasks: configure_apache_ssl.yml
+  loop: "{{ sites }}"
+  when: certbot_webroot_result.changed | default(false) or certbot_standalone_result.changed | default(false)
 
 - name: Set up auto-renewal
   cron:
     name: "Certbot renewal"
-    job: "certbot renew --quiet --no-self-upgrade"
+    job: "certbot renew --quiet --no-self-upgrade {{ '--post-hook \"' + certbot.renew_hook + '\"' if certbot.renew_hook is defined else '' }}"
     hour: "3"
     minute: "30"
     weekday: "1"  # Monday
