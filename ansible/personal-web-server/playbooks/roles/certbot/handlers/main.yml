@@ -1,14 +1,12 @@
 ---
 - name: reload nginx
-  ansible.builtin.shell: |
-    if systemctl is-active nginx >/dev/null 2>&1; then
-      systemctl reload nginx
-    else
-      systemctl start nginx
-    fi
-  changed_when: true
+  ansible.builtin.service:
+    name: nginx
+    state: reloaded
+  failed_when: false
 
 - name: restart nginx
-  ansible.builtin.shell: |
-    systemctl restart nginx || systemctl start nginx
-  changed_when: true
+  ansible.builtin.service:
+    name: nginx
+    state: restarted
+  failed_when: false

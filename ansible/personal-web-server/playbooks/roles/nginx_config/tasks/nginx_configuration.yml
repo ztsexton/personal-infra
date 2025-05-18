@@ -1,5 +1,5 @@
 ---
-- name: Ensure NGINX base directories exist
+- name: Ensure NGINX directories exist
   ansible.builtin.file:
     path: "{{ item }}"
     state: directory
@@ -7,23 +7,41 @@
   loop:
     - /etc/nginx/sites-available
     - /etc/nginx/sites-enabled
+    - /etc/nginx/conf.d
 
-- name: Backup the default NGINX config
-  ansible.builtin.command: cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.bak
-  args:
-    creates: /etc/nginx/nginx.conf.bak
-  changed_when: true
-  ignore_errors: yes
+- name: Backup original NGINX configuration if it exists
+  ansible.builtin.copy:
+    src: /etc/nginx/nginx.conf
+    dest: /etc/nginx/nginx.conf.backup
+    remote_src: yes
+  failed_when: false
+  changed_when: false
 
-- name: Set NGINX default configuration
+- name: Check if default site exists
+  ansible.builtin.stat:
+    path: /etc/nginx/sites-enabled/default
+  register: default_site
+
+- name: Remove default site if it exists
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  when: default_site.stat.exists
+  notify: restart nginx
+
+- name: Create a minimal NGINX configuration
   ansible.builtin.template:
     src: nginx.conf.j2
     dest: /etc/nginx/nginx.conf
     mode: '0644'
-  notify: reload nginx
+  notify: restart nginx
 
-- name: Remove default NGINX site if it exists
-  ansible.builtin.file:
-    path: /etc/nginx/sites-enabled/default
-    state: absent
-  ignore_errors: yes
+- name: Test NGINX configuration
+  ansible.builtin.command: nginx -t
+  changed_when: false
+  register: nginx_test
+  failed_when: false
+
+- name: Display NGINX configuration test results
+  ansible.builtin.debug:
+    msg: "{{ nginx_test.stdout_lines + nginx_test.stderr_lines }}"

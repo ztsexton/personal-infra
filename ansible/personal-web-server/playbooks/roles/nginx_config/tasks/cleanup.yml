@@ -1,117 +1,114 @@
 ---
-- name: Install NGINX
-  apt:
+- name: Update package cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install NGINX package
+  ansible.builtin.apt:
     name: nginx
     state: present
-    update_cache: yes
+    update_cache: no
+  register: nginx_install
 
 - name: Wait for systemd to recognize the new NGINX service
   ansible.builtin.command: systemctl daemon-reload
   changed_when: false
+  when: nginx_install.changed
 
+- name: Display installed NGINX information
+  ansible.builtin.command: dpkg -l | grep nginx
+  register: nginx_info
+  changed_when: false
+  failed_when: false
+
+- name: Show NGINX package information
+  ansible.builtin.debug:
+    msg: "{{ nginx_info.stdout_lines }}"
+
+# Stop Apache and free up ports
 - name: Check if Apache is running
   ansible.builtin.command: systemctl status apache2
   register: apache_status
   changed_when: false
   failed_when: false
 
-- name: Force kill any Apache processes if needed
-  ansible.builtin.shell: pkill -9 apache2 || true
-  changed_when: false
-  when: "'active (running)' in apache_status.stdout"
-
 - name: Stop and disable Apache
-  service:
+  ansible.builtin.service:
     name: apache2
     state: stopped
     enabled: no
   ignore_errors: yes
+  when: "'active (running)' in apache_status.stdout"
 
 - name: Create directory for Let's Encrypt verification
-  file:
+  ansible.builtin.file:
     path: /var/www/letsencrypt/.well-known/acme-challenge
     state: directory
     mode: '0755'
     recurse: yes
 
-- name: Check if port 80 is in use
-  ansible.builtin.shell: netstat -tulpn | grep :80
+# Make sure ports 80 and 443 are free
+- name: Check for processes listening on port 80
+  ansible.builtin.shell: ss -tulpn | grep ':80 '
   register: port_80_check
-  failed_when: false
   changed_when: false
+  failed_when: false
 
-- name: Check if port 443 is in use
-  ansible.builtin.shell: netstat -tulpn | grep :443
+- name: Check for processes listening on port 443
+  ansible.builtin.shell: ss -tulpn | grep ':443 '
   register: port_443_check
-  failed_when: false
   changed_when: false
+  failed_when: false
 
-- name: Show process using port 80 if any
+- name: Display processes on port 80
   ansible.builtin.debug:
-    msg: "Process using port 80: {{ port_80_check.stdout }}"
+    msg: "Process on port 80: {{ port_80_check.stdout }}"
   when: port_80_check.rc == 0
 
-- name: Show process using port 443 if any
+- name: Display processes on port 443
   ansible.builtin.debug:
-    msg: "Process using port 443: {{ port_443_check.stdout }}"
+    msg: "Process on port 443: {{ port_443_check.stdout }}"
   when: port_443_check.rc == 0
 
-- name: Kill processes holding ports 80 and 443 if needed
-  ansible.builtin.shell: |
-    if [[ "{{ port_80_check.rc }}" == "0" ]]; then
-      pid=$(echo "{{ port_80_check.stdout }}" | awk '{print $7}' | cut -d'/' -f1)
-      if [[ -n "$pid" ]]; then
-        kill -9 $pid || true
-      fi
-    fi
-    if [[ "{{ port_443_check.rc }}" == "0" ]]; then
-      pid=$(echo "{{ port_443_check.stdout }}" | awk '{print $7}' | cut -d'/' -f1)
-      if [[ -n "$pid" ]]; then
-        kill -9 $pid || true
-      fi
-    fi
-  when: port_80_check.rc == 0 or port_443_check.rc == 0
-  changed_when: true
+# Check if nginx binary exists
+- name: Check if nginx binary exists
+  ansible.builtin.stat:
+    path: /usr/sbin/nginx
+  register: nginx_binary
 
-- name: Check NGINX configuration before starting
-  ansible.builtin.command: nginx -t
-  register: nginx_config_test
-  changed_when: false
-  failed_when: false
-
-- name: Show NGINX configuration test results
+- name: Show nginx binary status
   ansible.builtin.debug:
-    msg: "{{ nginx_config_test.stdout_lines + nginx_config_test.stderr_lines }}"
+    msg: "NGINX binary exists: {{ nginx_binary.stat.exists }}"
 
-# Force start NGINX and make sure it's running before proceeding
-- name: Start NGINX service
-  ansible.builtin.command: systemctl start nginx
+# Ensure NGINX is running
+- name: Enable and start NGINX service
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: yes
   register: nginx_start
-  changed_when: true
   failed_when: false
+  when: nginx_binary.stat.exists
 
-- name: Show NGINX start errors if any
+- name: Display NGINX service start result
   ansible.builtin.debug:
-    msg: "NGINX start failed: {{ nginx_start.stderr }}"
-  when: nginx_start.rc != 0
+    msg: "NGINX service start result: {{ nginx_start }}"
+  when: nginx_binary.stat.exists
 
-- name: Get NGINX service status for debugging
+- name: Check if NGINX is running
   ansible.builtin.command: systemctl status nginx
-  register: nginx_status_debug
+  register: nginx_status
   changed_when: false
   failed_when: false
+  when: nginx_binary.stat.exists
 
-- name: Show NGINX service status
+- name: Display NGINX service status
   ansible.builtin.debug:
-    msg: "{{ nginx_status_debug.stdout_lines + nginx_status_debug.stderr_lines }}"
+    msg: "{{ nginx_status.stdout_lines }}"
+  when: nginx_binary.stat.exists and nginx_status.rc == 0
 
-- name: Enable NGINX service on boot
-  ansible.builtin.command: systemctl enable nginx
-  changed_when: true
-  ignore_errors: yes
-
-- name: Verify NGINX is running
-  ansible.builtin.command: systemctl is-active nginx
-  register: nginx_is_active
-  changed_when: false
-  failed_when: false
+- name: Display NGINX service error
+  ansible.builtin.debug:
+    msg: "NGINX service error: {{ nginx_status.stderr }}"
+  when: nginx_binary.stat.exists and nginx_status.rc != 0
