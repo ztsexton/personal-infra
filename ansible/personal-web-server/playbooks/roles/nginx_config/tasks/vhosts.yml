@@ -1,20 +1,4 @@
 ---
-- name: Create virtual host files
-  ansible.builtin.template:
-    src: vhost.conf.j2
-    dest: /etc/nginx/sites-available/{{ item.server_name }}.conf
-    mode: '0644'
-  loop: "{{ sites }}"
-  notify: reload nginx
-
-- name: Enable virtual hosts
-  ansible.builtin.file:
-    src: /etc/nginx/sites-available/{{ item.server_name }}.conf
-    dest: /etc/nginx/sites-enabled/{{ item.server_name }}.conf
-    state: link
-  loop: "{{ sites }}"
-  notify: reload nginx
-
 - name: Create web root directories
   ansible.builtin.file:
     path: "{{ item.root }}"
@@ -31,3 +15,24 @@
     - "{{ sites }}"
     - aliases
     - skip_missing: yes
+
+- name: Create virtual host files
+  ansible.builtin.template:
+    src: vhost.conf.j2
+    dest: /etc/nginx/sites-available/{{ item.server_name }}.conf
+    mode: '0644'
+  loop: "{{ sites }}"
+  register: vhost_files
+  notify: reload nginx
+
+- name: Enable virtual hosts
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/{{ item.server_name }}.conf
+    dest: /etc/nginx/sites-enabled/{{ item.server_name }}.conf
+    state: link
+  loop: "{{ sites }}"
+  register: symlink_result
+  failed_when: >
+    symlink_result.failed and 
+    ('src file does not exist' not in symlink_result.msg)
+  notify: reload nginx
