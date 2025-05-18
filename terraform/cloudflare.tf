@@ -31,37 +31,19 @@ resource "cloudflare_record" "vigilo_root" {
   proxied = true  # Enable Cloudflare proxy
 }
 
-# SSL specific settings for zachsexton.com
-resource "cloudflare_zone_settings_override" "zachsexton_ssl_settings" {
+# DNSSEC settings for zachsexton.com
+resource "cloudflare_zone_dnssec" "zachsexton_dnssec" {
   zone_id = var.cloudflare_zone_id_zachsexton
-  
-  settings {
-    # Only include the specific settings we want to manage
-    ssl = "strict"                # This sets "Full (strict)" SSL mode
-    always_use_https = "on"
-  }
 }
 
-# SSL specific settings for petfoodfinder.app
-resource "cloudflare_zone_settings_override" "petfoodfinder_ssl_settings" {
+# DNSSEC settings for petfoodfinder.app
+resource "cloudflare_zone_dnssec" "petfoodfinder_dnssec" {
   zone_id = var.cloudflare_zone_id_petfoodfinder
-  
-  settings {
-    # Only include the specific settings we want to manage
-    ssl = "strict"                # This sets "Full (strict)" SSL mode
-    always_use_https = "on"
-  }
 }
 
-# SSL specific settings for vigilo.dev
-resource "cloudflare_zone_settings_override" "vigilo_ssl_settings" {
+# DNSSEC settings for vigilo.dev
+resource "cloudflare_zone_dnssec" "vigilo_dnssec" {
   zone_id = var.cloudflare_zone_id_vigilo
-  
-  settings {
-    # Only include the specific settings we want to manage
-    ssl = "strict"                # This sets "Full (strict)" SSL mode
-    always_use_https = "on"
-  }
 }
 
 # Variables for Cloudflare configuration
