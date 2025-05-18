@@ -1,15 +1,14 @@
-<VirtualHost *:80>
-    ServerName {{ item.server_name }}
-    {% if item.server_aliases is defined %}
-    ServerAlias {% for alias in item.server_aliases %}{{ alias }} {% endfor %}
-    {% endif %}
-    
-    DocumentRoot {{ item.root }}
+server {
+    listen 80;
+    server_name {{ item.server_name }} www.{{ item.server_name }};
     
     # Redirect all HTTP traffic to HTTPS
-    RewriteEngine On
-    RewriteRule ^(.*)$ https://%{HTTP_HOST}$1 [R=301,L]
+    location / {
+        return 301 https://$host$request_uri;
+    }
     
-    ErrorLog ${APACHE_LOG_DIR}/{{ item.server_name }}_redirect_error.log
-    CustomLog ${APACHE_LOG_DIR}/{{ item.server_name }}_redirect_access.log combined
-</VirtualHost>
+    # Allow Let's Encrypt verification to work
+    location /.well-known/acme-challenge/ {
+        root /var/www/letsencrypt;
+    }
+}

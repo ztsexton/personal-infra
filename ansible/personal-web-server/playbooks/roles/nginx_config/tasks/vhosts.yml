@@ -1,0 +1,33 @@
+---
+- name: Create virtual host files
+  ansible.builtin.template:
+    src: vhost.conf.j2
+    dest: /etc/nginx/sites-available/{{ item.server_name }}.conf
+    mode: '0644'
+  loop: "{{ sites }}"
+  notify: reload nginx
+
+- name: Enable virtual hosts
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/{{ item.server_name }}.conf
+    dest: /etc/nginx/sites-enabled/{{ item.server_name }}.conf
+    state: link
+  loop: "{{ sites }}"
+  notify: reload nginx
+
+- name: Create web root directories
+  ansible.builtin.file:
+    path: "{{ item.root }}"
+    state: directory
+    mode: '0755'
+  loop: "{{ sites }}"
+
+- name: Create aliases directories (if configured)
+  ansible.builtin.file:
+    path: "{{ item.1.directory }}"
+    state: directory
+    mode: '0755'
+  with_subelements:
+    - "{{ sites }}"
+    - aliases
+    - skip_missing: yes

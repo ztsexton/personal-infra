@@ -1,0 +1,4 @@
+---
+roles:
+  - name: nginxinc.nginx
+    version: latest

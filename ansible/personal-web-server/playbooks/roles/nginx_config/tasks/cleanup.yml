@@ -1,0 +1,14 @@
+---
+- name: Stop and disable Apache
+  service:
+    name: apache2
+    state: stopped
+    enabled: no
+  ignore_errors: true
+
+- name: Create directory for Let's Encrypt verification
+  file:
+    path: /var/www/letsencrypt/.well-known/acme-challenge
+    state: directory
+    mode: '0755'
+    recurse: yes

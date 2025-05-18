@@ -1,4 +1,4 @@
-name: Deploy Apache configuration
+name: Deploy NGINX configuration
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:            
 
 jobs:
-  configure-apache:
+  configure-nginx:
     runs-on: ubuntu-latest
 
     steps:
@@ -32,6 +32,7 @@ jobs:
 
     - name: Ansible check‑mode (dry run)
       run: |
+        ansible-galaxy install -r ansible/personal-web-server/requirements.yml
         ansible-playbook \
           -i ansible/inventory/hosts.ini \
           ansible/personal-web-server/playbooks/site.yml \
@@ -39,6 +40,7 @@ jobs:
 
     - name: Apply configuration
       run: |
+        ansible-galaxy install -r ansible/personal-web-server/requirements.yml
         ansible-playbook \
           -i ansible/inventory/hosts.ini \
           ansible/personal-web-server/playbooks/site.yml \

@@ -3,24 +3,15 @@
   apt:
     name: 
       - certbot
-      - python3-certbot-apache
+      - python3-certbot-nginx
       - ssl-cert
     state: present
     update_cache: yes
 
-- name: Ensure Apache modules for SSL are enabled
-  apache2_module:
-    name: "{{ item }}"
-    state: present
-  with_items:
-    - ssl
-    - rewrite
-    - headers
-
-# First try if Apache can start without SSL
-- name: Ensure basic Apache is running
+# First try if NGINX can start without SSL
+- name: Ensure basic NGINX is running
   service:
-    name: apache2
+    name: nginx
     state: started
     enabled: yes
   ignore_errors: yes
@@ -33,13 +24,13 @@
   loop: "{{ sites }}"
   ignore_errors: yes
 
-# Stop Apache temporarily if using standalone mode
-- name: Stop Apache temporarily if using standalone mode
+# Stop NGINX temporarily if using standalone mode
+- name: Stop NGINX temporarily if using standalone mode
   service:
-    name: apache2
+    name: nginx
     state: stopped
   when: certbot.standalone | default(false)
-  register: apache_stopped_for_cert
+  register: nginx_stopped_for_cert
   ignore_errors: yes
 
 # Try to obtain certificates
@@ -56,16 +47,16 @@
     - not item.stat.exists | default(false) 
     - certbot.create_if_missing | default(true)
     - certbot.standalone | default(false)
-    - apache_stopped_for_cert is not failed
+    - nginx_stopped_for_cert is not failed
   register: certbot_standalone_result
   ignore_errors: yes
 
-# Start Apache again after standalone certificate issuance
-- name: Start Apache again after standalone certificate issuance
+# Start NGINX again after standalone certificate issuance
+- name: Start NGINX again after standalone certificate issuance
   service:
-    name: apache2
+    name: nginx
     state: started
-  when: apache_stopped_for_cert.changed | default(false)
+  when: nginx_stopped_for_cert.changed | default(false)
   ignore_errors: yes
 
 # Check if certificates exist after attempting to create them
@@ -77,8 +68,8 @@
   ignore_errors: yes
 
 # Configure SSL only for domains where we have certificates
-- name: Configure Apache for SSL only for domains with certificates
-  include_tasks: configure_apache_ssl.yml
+- name: Configure NGINX for SSL only for domains with certificates
+  include_tasks: configure_nginx_ssl.yml
   vars:
     domain_has_cert: "{{ certs_after_creation.results | selectattr('item.server_name', 'equalto', item.server_name) | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | list | length > 0 }}"
   loop: "{{ sites }}"
@@ -89,7 +80,7 @@
 - name: Set up auto-renewal
   cron:
     name: "Certbot renewal"
-    job: "certbot renew --quiet --no-self-upgrade {{ '--pre-hook \"systemctl stop apache2\"' if certbot.standalone | default(false) else '' }} {{ '--post-hook \"' + certbot.renew_hook + '\"' if certbot.renew_hook is defined else '' }}"
+    job: "certbot renew --quiet --no-self-upgrade {{ '--pre-hook \"systemctl stop nginx\"' if certbot.standalone | default(false) else '' }} {{ '--post-hook \"' + certbot.renew_hook + '\"' if certbot.renew_hook is defined else '' }}"
     hour: "3"
     minute: "30"
     weekday: "1"  # Monday
