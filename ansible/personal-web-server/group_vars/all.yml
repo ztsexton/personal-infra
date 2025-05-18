@@ -19,7 +19,7 @@ sites:
 
 # Certbot configuration
 certbot:
-  use_staging: true  # Use staging environment to avoid rate limits during testing
+  use_staging: false  # Use staging environment to avoid rate limits during testing
   standalone: true   # Use standalone mode instead of webroot
   create_if_missing: true
   force_redirect: true
