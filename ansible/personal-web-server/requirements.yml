@@ -1,4 +1,4 @@
 ---
 roles:
   - name: nginxinc.nginx
-    version: latest
+    version: 0.25.0
