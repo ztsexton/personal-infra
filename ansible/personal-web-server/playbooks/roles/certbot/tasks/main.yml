@@ -16,18 +16,16 @@
     - ssl
     - rewrite
     - headers
-  register: apache_modules
 
-- name: Create webroot directory for HTTP challenge if needed
-  file:
-    path: "{{ certbot.webroot_path | default('/var/www/html') }}/.well-known/acme-challenge"
-    state: directory
-    mode: 0755
-    owner: www-data
-    group: www-data
-    recurse: yes
-  when: not certbot.standalone | default(false)
+# First try if Apache can start without SSL
+- name: Ensure basic Apache is running
+  service:
+    name: apache2
+    state: started
+    enabled: yes
+  ignore_errors: yes
 
+# Check if certificates already exist
 - name: Check if certificates already exist
   stat:
     path: "/etc/letsencrypt/live/{{ item.server_name }}/fullchain.pem"
@@ -35,39 +33,63 @@
   loop: "{{ sites }}"
   ignore_errors: yes
 
-- name: Obtain certificates for domains (webroot method)
+# Stop Apache temporarily if using standalone mode
+- name: Stop Apache temporarily if using standalone mode
+  service:
+    name: apache2
+    state: stopped
+  when: certbot.standalone | default(false)
+  register: apache_stopped_for_cert
+  ignore_errors: yes
+
+# Try to obtain certificates
+- name: Obtain certificates for domains (standalone method)
   command: >
-    certbot certonly --webroot
+    certbot certonly --standalone
     {{ '--staging' if certbot.use_staging | default(false) else '' }}
     --non-interactive --agree-tos 
     --email {{ item.item.certbot_email | default('webmaster@' + item.item.server_name) }}
-    --webroot-path {{ certbot.webroot_path | default('/var/www/html') }}
     -d {{ item.item.server_name }}
     --cert-name {{ item.item.server_name }}
   loop: "{{ cert_exists.results }}"
   when: 
     - not item.stat.exists | default(false) 
     - certbot.create_if_missing | default(true)
-    - not certbot.standalone | default(false)
-  register: certbot_webroot_result
+    - certbot.standalone | default(false)
+    - apache_stopped_for_cert is not failed
+  register: certbot_standalone_result
   ignore_errors: yes
 
-# Ensure Apache is running after module installation before configuring SSL
-- name: Make sure Apache is running
+# Start Apache again after standalone certificate issuance
+- name: Start Apache again after standalone certificate issuance
   service:
     name: apache2
     state: started
-    enabled: yes
+  when: apache_stopped_for_cert.changed | default(false)
+  ignore_errors: yes
 
-- name: Configure Apache for SSL
-  include_tasks: configure_apache_ssl.yml
+# Check if certificates exist after attempting to create them
+- name: Recheck if certificates exist after obtaining them
+  stat:
+    path: "/etc/letsencrypt/live/{{ item.server_name }}/fullchain.pem"
+  register: certs_after_creation
   loop: "{{ sites }}"
-  when: cert_exists.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | list | count > 0 or certbot_webroot_result.changed | default(false)
+  ignore_errors: yes
 
+# Configure SSL only for domains where we have certificates
+- name: Configure Apache for SSL only for domains with certificates
+  include_tasks: configure_apache_ssl.yml
+  vars:
+    domain_has_cert: "{{ certs_after_creation.results | selectattr('item.server_name', 'equalto', item.server_name) | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | list | length > 0 }}"
+  loop: "{{ sites }}"
+  when: domain_has_cert
+  ignore_errors: yes
+
+# Set up auto-renewal
 - name: Set up auto-renewal
   cron:
     name: "Certbot renewal"
-    job: "certbot renew --quiet --no-self-upgrade {{ '--post-hook \"' + certbot.renew_hook + '\"' if certbot.renew_hook is defined else '' }}"
+    job: "certbot renew --quiet --no-self-upgrade {{ '--pre-hook \"systemctl stop apache2\"' if certbot.standalone | default(false) else '' }} {{ '--post-hook \"' + certbot.renew_hook + '\"' if certbot.renew_hook is defined else '' }}"
     hour: "3"
     minute: "30"
     weekday: "1"  # Monday

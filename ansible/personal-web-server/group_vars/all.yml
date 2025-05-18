@@ -19,9 +19,8 @@ sites:
 
 # Certbot configuration
 certbot:
-  use_staging: false  # Set to true for testing with Let's Encrypt staging environment
-  webroot_path: /var/www/html  # Default webroot path for HTTP challenge
-  standalone: false  # Use webroot instead of standalone mode
-  create_if_missing: true  # Only create certificates if they don't exist
-  force_redirect: true  # Force HTTP to HTTPS redirect
-  renew_hook: "systemctl reload apache2"  # Command to run after successful renewal
+  use_staging: true  # Use staging environment to avoid rate limits during testing
+  standalone: true   # Use standalone mode instead of webroot
+  create_if_missing: true
+  force_redirect: true
+  renew_hook: "systemctl reload apache2"
