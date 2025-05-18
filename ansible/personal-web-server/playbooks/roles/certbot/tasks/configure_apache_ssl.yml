@@ -15,13 +15,6 @@
     owner: root
     group: root
     mode: "0644"
-  notify: restart apache
-
-- name: Enable SSL site
-  command: a2ensite {{ item.server_name }}-ssl.conf
-  args:
-    creates: "/etc/apache2/sites-enabled/{{ item.server_name }}-ssl.conf"
-  notify: restart apache
 
 - name: Configure HTTP site to redirect to HTTPS
   template:
@@ -31,4 +24,16 @@
     group: root
     mode: "0644"
   when: certbot.force_redirect | default(true)
+
+- name: Validate Apache configuration
+  command: apache2ctl configtest
+  register: apache_config_test
+  ignore_errors: true
+  changed_when: false
+
+- name: Enable SSL site if Apache config is valid
+  command: a2ensite {{ item.server_name }}-ssl.conf
+  args:
+    creates: "/etc/apache2/sites-enabled/{{ item.server_name }}-ssl.conf"
+  when: apache_config_test.rc == 0
   notify: restart apache
