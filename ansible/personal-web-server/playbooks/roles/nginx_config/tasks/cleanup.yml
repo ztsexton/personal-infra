@@ -56,6 +56,10 @@
   register: www_data_user_exists
   failed_when: false
 
+- name: Debug www-data user check
+  ansible.builtin.debug:
+    var: www_data_user_exists
+
 - name: Create www-data user if it doesn't exist
   ansible.builtin.user:
     name: www-data
@@ -63,7 +67,7 @@
     system: yes
     createhome: no
     comment: "Web Server User"
-  when: www_data_user_exists.failed or not www_data_user_exists.ansible_facts.getent_passwd.www-data is defined
+  when: www_data_user_exists.failed or www_data_user_exists.ansible_facts is not defined
 
 - name: Check if nginx user exists
   ansible.builtin.getent:
@@ -72,6 +76,10 @@
   register: nginx_user_exists
   failed_when: false
 
+- name: Debug nginx user check
+  ansible.builtin.debug:
+    var: nginx_user_exists
+
 - name: Create nginx user if it doesn't exist
   ansible.builtin.user:
     name: nginx
@@ -79,7 +87,7 @@
     system: yes
     createhome: no
     comment: "NGINX web server"
-  when: nginx_user_exists.failed or not nginx_user_exists.ansible_facts.getent_passwd.nginx is defined
+  when: nginx_user_exists.failed or nginx_user_exists.ansible_facts is not defined
 
 - name: Ensure nginx.conf uses the correct user
   ansible.builtin.lineinfile:
