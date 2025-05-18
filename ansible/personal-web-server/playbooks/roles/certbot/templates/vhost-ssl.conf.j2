@@ -1,0 +1,41 @@
+<VirtualHost *:443>
+    ServerName {{ item.server_name }}
+    {% if item.server_aliases is defined %}
+    ServerAlias {% for alias in item.server_aliases %}{{ alias }} {% endfor %}
+    {% endif %}
+    
+    DocumentRoot {{ item.root }}
+    
+    <Directory {{ item.root }}>
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    {% if item.aliases is defined %}
+    {% for alias in item.aliases %}
+    Alias {{ alias.path }} {{ alias.directory }}
+    <Directory {{ alias.directory }}>
+        Options Indexes FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+    {% endfor %}
+    {% endif %}
+    
+    ErrorLog ${APACHE_LOG_DIR}/{{ item.server_name }}_ssl_error.log
+    CustomLog ${APACHE_LOG_DIR}/{{ item.server_name }}_ssl_access.log combined
+    
+    SSLEngine on
+    SSLCertificateFile /etc/letsencrypt/live/{{ item.server_name }}/cert.pem
+    SSLCertificateKeyFile /etc/letsencrypt/live/{{ item.server_name }}/privkey.pem
+    SSLCertificateChainFile /etc/letsencrypt/live/{{ item.server_name }}/chain.pem
+    
+    # Modern SSL configuration
+    SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1
+    SSLHonorCipherOrder on
+    SSLCompression off
+    
+    # HSTS (optional, uncomment to enable)
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+</VirtualHost>
