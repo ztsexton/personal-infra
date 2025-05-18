@@ -1,12 +1,8 @@
 ---
 - name: reload nginx
-  ansible.builtin.systemd:
-    name: nginx
-    state: reloaded
-    daemon_reload: yes
+  ansible.builtin.command: systemctl reload nginx
+  changed_when: true
 
 - name: restart nginx
-  ansible.builtin.systemd:
-    name: nginx
-    state: restarted
-    daemon_reload: yes
+  ansible.builtin.command: systemctl restart nginx
+  changed_when: true
