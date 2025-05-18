@@ -31,6 +31,42 @@ resource "cloudflare_record" "vigilo_root" {
   proxied = true  # Enable Cloudflare proxy
 }
 
+# Cloudflare Zone Settings for zachsexton.com
+resource "cloudflare_zone_settings_override" "zachsexton_settings" {
+  zone_id = var.cloudflare_zone_id_zachsexton
+  
+  settings {
+    ssl = "strict" # This sets "Full (strict)" SSL mode
+    always_use_https = "on"
+    min_tls_version = "1.2"
+    tls_1_3 = "on"
+  }
+}
+
+# Cloudflare Zone Settings for petfoodfinder.app
+resource "cloudflare_zone_settings_override" "petfoodfinder_settings" {
+  zone_id = var.cloudflare_zone_id_petfoodfinder
+  
+  settings {
+    ssl = "strict" # This sets "Full (strict)" SSL mode
+    always_use_https = "on"
+    min_tls_version = "1.2"
+    tls_1_3 = "on"
+  }
+}
+
+# Cloudflare Zone Settings for vigilo.dev
+resource "cloudflare_zone_settings_override" "vigilo_settings" {
+  zone_id = var.cloudflare_zone_id_vigilo
+  
+  settings {
+    ssl = "strict" # This sets "Full (strict)" SSL mode
+    always_use_https = "on"
+    min_tls_version = "1.2"
+    tls_1_3 = "on"
+  }
+}
+
 # Variables for Cloudflare configuration
 variable "cloudflare_api_token" {
   sensitive   = true
