@@ -96,7 +96,7 @@ terraform {
 
 ## GitHub Actions
 
-Automated deployment pipeline for Apache configuration changes:
+Automated deployment pipeline for NGINX configuration changes:
 
 - Triggers:
   - Push to `master` branch (only `ansible/**` changes)

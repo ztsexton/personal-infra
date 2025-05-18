@@ -8,14 +8,6 @@
     state: present
     update_cache: yes
 
-# First try if NGINX can start without SSL
-- name: Ensure basic NGINX is running
-  service:
-    name: nginx
-    state: started
-    enabled: yes
-  ignore_errors: yes
-
 # Check if certificates already exist
 - name: Check if certificates already exist
   stat:
