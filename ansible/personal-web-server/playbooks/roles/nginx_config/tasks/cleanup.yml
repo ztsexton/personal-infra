@@ -63,7 +63,7 @@
     system: yes
     createhome: no
     comment: "Web Server User"
-  when: www_data_user_exists.failed or www_data_user_exists.item.stdout == ""
+  when: www_data_user_exists.rc != 0
 
 - name: Check if nginx user exists
   ansible.builtin.getent:
@@ -79,7 +79,7 @@
     system: yes
     createhome: no
     comment: "NGINX web server"
-  when: nginx_user_exists.failed or nginx_user_exists.item.stdout == ""
+  when: nginx_user_exists.rc != 0
 
 - name: Ensure nginx.conf uses the correct user
   ansible.builtin.lineinfile:
