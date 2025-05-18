@@ -1,0 +1,15 @@
+<VirtualHost *:80>
+    ServerName {{ item.server_name }}
+    {% if item.server_aliases is defined %}
+    ServerAlias {% for alias in item.server_aliases %}{{ alias }} {% endfor %}
+    {% endif %}
+    
+    DocumentRoot {{ item.root }}
+    
+    # Redirect all HTTP traffic to HTTPS
+    RewriteEngine On
+    RewriteRule ^(.*)$ https://%{HTTP_HOST}$1 [R=301,L]
+    
+    ErrorLog ${APACHE_LOG_DIR}/{{ item.server_name }}_redirect_error.log
+    CustomLog ${APACHE_LOG_DIR}/{{ item.server_name }}_redirect_access.log combined
+</VirtualHost>
