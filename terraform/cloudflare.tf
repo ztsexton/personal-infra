@@ -41,6 +41,15 @@ resource "cloudflare_zone_settings_override" "zachsexton_settings" {
     min_tls_version = "1.2"
     tls_1_3 = "on"
   }
+
+  # Prevent read-only settings from being modified
+  lifecycle {
+    ignore_changes = [
+      settings.0.proxy_read_timeout,
+      settings.0.polish,
+      # Add other read-only settings if they cause issues
+    ]
+  }
 }
 
 # Cloudflare Zone Settings for petfoodfinder.app
@@ -53,6 +62,15 @@ resource "cloudflare_zone_settings_override" "petfoodfinder_settings" {
     min_tls_version = "1.2"
     tls_1_3 = "on"
   }
+
+  # Prevent read-only settings from being modified
+  lifecycle {
+    ignore_changes = [
+      settings.0.proxy_read_timeout,
+      settings.0.polish,
+      # Add other read-only settings if they cause issues
+    ]
+  }
 }
 
 # Cloudflare Zone Settings for vigilo.dev
@@ -64,6 +82,15 @@ resource "cloudflare_zone_settings_override" "vigilo_settings" {
     always_use_https = "on"
     min_tls_version = "1.2"
     tls_1_3 = "on"
+  }
+
+  # Prevent read-only settings from being modified
+  lifecycle {
+    ignore_changes = [
+      settings.0.proxy_read_timeout,
+      settings.0.polish,
+      # Add other read-only settings if they cause issues
+    ]
   }
 }
 
