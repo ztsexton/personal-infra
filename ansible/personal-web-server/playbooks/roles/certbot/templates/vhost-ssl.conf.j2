@@ -27,9 +27,9 @@
     CustomLog ${APACHE_LOG_DIR}/{{ item.server_name }}_ssl_access.log combined
     
     SSLEngine on
-    SSLCertificateFile /etc/letsencrypt/live/{{ item.server_name }}/cert.pem
+    # Let's Encrypt certificates use fullchain.pem, not cert.pem + chain.pem
+    SSLCertificateFile /etc/letsencrypt/live/{{ item.server_name }}/fullchain.pem
     SSLCertificateKeyFile /etc/letsencrypt/live/{{ item.server_name }}/privkey.pem
-    SSLCertificateChainFile /etc/letsencrypt/live/{{ item.server_name }}/chain.pem
     
     # Modern SSL configuration
     SSLProtocol all -SSLv2 -SSLv3 -TLSv1 -TLSv1.1

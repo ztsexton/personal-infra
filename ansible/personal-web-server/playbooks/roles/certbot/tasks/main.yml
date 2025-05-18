@@ -4,6 +4,7 @@
     name: 
       - certbot
       - python3-certbot-apache
+      - ssl-cert
     state: present
     update_cache: yes
 
@@ -15,7 +16,7 @@
     - ssl
     - rewrite
     - headers
-  notify: restart apache
+  register: apache_modules
 
 - name: Create webroot directory for HTTP challenge if needed
   file:
@@ -29,7 +30,7 @@
 
 - name: Check if certificates already exist
   stat:
-    path: "/etc/letsencrypt/live/{{ item.server_name }}/cert.pem"
+    path: "/etc/letsencrypt/live/{{ item.server_name }}/fullchain.pem"
   register: cert_exists
   loop: "{{ sites }}"
   ignore_errors: yes
@@ -51,9 +52,17 @@
   register: certbot_webroot_result
   ignore_errors: yes
 
+# Ensure Apache is running after module installation before configuring SSL
+- name: Make sure Apache is running
+  service:
+    name: apache2
+    state: started
+    enabled: yes
+
 - name: Configure Apache for SSL
   include_tasks: configure_apache_ssl.yml
   loop: "{{ sites }}"
+  when: cert_exists.results | selectattr('stat.exists', 'defined') | selectattr('stat.exists') | list | count > 0 or certbot_webroot_result.changed | default(false)
 
 - name: Set up auto-renewal
   cron:
