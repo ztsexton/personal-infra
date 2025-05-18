@@ -7,9 +7,12 @@ sites:
         directory: /var/www/zachsexton.com/font-helper
       - path: /music-butler
         directory: /var/www/zachsexton.com/music-butler
+    certbot_email: webmaster@zachsexton.com
 
   - server_name: petfoodfinder.app
     root: /var/www/petfoodfinder.app/html
+    certbot_email: webmaster@petfoodfinder.app
 
   - server_name: vigilo.dev
     root: /var/www/vigilo.dev/html
+    certbot_email: webmaster@vigilo.dev

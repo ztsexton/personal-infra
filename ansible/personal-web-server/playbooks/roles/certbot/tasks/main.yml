@@ -1,0 +1,32 @@
+---
+- name: Install required packages
+  apt:
+    name: 
+      - certbot
+      - python3-certbot-apache
+    state: present
+    update_cache: yes
+
+- name: Check if certificates already exist
+  stat:
+    path: "/etc/letsencrypt/live/{{ item.server_name }}/cert.pem"
+  register: cert_exists
+  loop: "{{ sites }}"
+
+- name: Obtain certificates for domains
+  command: >
+    certbot --apache --non-interactive --agree-tos 
+    --email {{ item.item.certbot_email | default('webmaster@' + item.item.server_name) }} 
+    --domains {{ item.item.server_name }} 
+    --redirect
+  loop: "{{ cert_exists.results }}"
+  when: not item.stat.exists
+  notify: restart apache
+
+- name: Set up auto-renewal
+  cron:
+    name: "Certbot renewal"
+    job: "certbot renew --quiet --no-self-upgrade"
+    hour: "3"
+    minute: "30"
+    weekday: "1"  # Monday
