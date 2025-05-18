@@ -1,0 +1,34 @@
+---
+- name: Ensure SSL directories exist for virtual host
+  file:
+    path: "/etc/apache2/sites-available/{{ item.server_name }}-ssl.conf"
+    state: touch
+    owner: root
+    group: root
+    mode: "0644"
+  register: ssl_conf_file
+
+- name: Create SSL virtual host configuration
+  template:
+    src: vhost-ssl.conf.j2
+    dest: "/etc/apache2/sites-available/{{ item.server_name }}-ssl.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart apache
+
+- name: Enable SSL site
+  command: a2ensite {{ item.server_name }}-ssl.conf
+  args:
+    creates: "/etc/apache2/sites-enabled/{{ item.server_name }}-ssl.conf"
+  notify: restart apache
+
+- name: Configure HTTP site to redirect to HTTPS
+  template:
+    src: vhost-redirect.conf.j2
+    dest: "/etc/apache2/sites-available/{{ item.server_name }}.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  when: certbot.force_redirect | default(true)
+  notify: restart apache
