@@ -3,19 +3,32 @@
   apt:
     name: nginx
     state: present
-    update_cache: yes
+    update_cache: true
 
-- name: Enable and start NGINX service
-  ansible.builtin.systemd:
-    name: nginx
-    state: started
-    enabled: yes
-    daemon_reload: yes
+- name: Wait for systemd to recognize the new NGINX service
+  ansible.builtin.command: systemctl daemon-reload
+  changed_when: false
 
+- name: Enable and start NGINX service (using command)
+  ansible.builtin.command: systemctl start nginx
+  changed_when: true
+  ignore_errors: true
+
+- name: Enable NGINX service on boot
+  ansible.builtin.command: systemctl enable nginx
+  changed_when: true
+  ignore_errors: true
+
+- name: Stop and disable Apache
+  service:
+    name: apache2
+    state: stopped
+    enabled: no
+  ignore_errors: true
 
 - name: Create directory for Let's Encrypt verification
   file:
     path: /var/www/letsencrypt/.well-known/acme-challenge
     state: directory
     mode: '0755'
-    recurse: yes
+    recurse: true
