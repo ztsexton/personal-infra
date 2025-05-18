@@ -4,10 +4,6 @@
   become: yes
   vars_files:
     - ../group_vars/all.yml
-  pre_tasks:
-    - name: Install ansible-galaxy roles
-      command: ansible-galaxy install -r ../requirements.yml
   roles:
-    - nginxinc.nginx
     - nginx_config
     - certbot
