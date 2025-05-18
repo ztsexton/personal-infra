@@ -1,0 +1,9 @@
+---
+- name: Include cleanup tasks
+  ansible.builtin.include_tasks: cleanup.yml
+
+- name: Include NGINX configuration tasks
+  ansible.builtin.include_tasks: nginx_configuration.yml
+
+- name: Include vhosts configuration tasks
+  ansible.builtin.include_tasks: vhosts.yml

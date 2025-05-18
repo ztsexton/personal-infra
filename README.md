@@ -60,7 +60,7 @@ ansible/
 
 ### Virtual Hosts
 
-Apache is configured to serve multiple domains:
+Nginx is configured to serve multiple domains:
 
 - zachsexton.com
 - petfoodfinder.app

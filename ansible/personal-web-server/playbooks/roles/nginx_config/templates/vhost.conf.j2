@@ -1,0 +1,27 @@
+server {
+    listen 80;
+    server_name {{ item.server_name }} www.{{ item.server_name }};
+    root {{ item.root }};
+    index index.html index.htm;
+
+    # Redirect to HTTPS if certbot is configured to force redirect
+    {% if certbot.force_redirect %}
+    location / {
+        return 301 https://$host$request_uri;
+    }
+    {% else %}
+    location / {
+        try_files $uri $uri/ =404;
+    }
+    {% endif %}
+
+    # Additional location blocks for aliases if they exist
+    {% if item.aliases is defined %}
+    {% for alias in item.aliases %}
+    location {{ alias.path }} {
+        alias {{ alias.directory }};
+        try_files $uri $uri/ =404;
+    }
+    {% endfor %}
+    {% endif %}
+}

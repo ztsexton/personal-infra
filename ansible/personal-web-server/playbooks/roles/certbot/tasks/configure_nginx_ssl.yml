@@ -1,0 +1,22 @@
+---
+- name: Create SSL virtual host config
+  template:
+    src: vhost-ssl.conf.j2
+    dest: "/etc/nginx/sites-available/{{ item.server_name }}-ssl.conf"
+    mode: '0644'
+  notify: reload nginx
+
+- name: Enable SSL virtual host config
+  file:
+    src: "/etc/nginx/sites-available/{{ item.server_name }}-ssl.conf"
+    dest: "/etc/nginx/sites-enabled/{{ item.server_name }}-ssl.conf"
+    state: link
+  notify: reload nginx
+
+- name: Create SSL redirect config if enabled
+  template:
+    src: vhost-redirect.conf.j2
+    dest: "/etc/nginx/sites-available/{{ item.server_name }}.conf"
+    mode: '0644'
+  when: certbot.force_redirect | default(false)
+  notify: reload nginx

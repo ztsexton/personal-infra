@@ -23,4 +23,4 @@ certbot:
   standalone: true   # Use standalone mode instead of webroot
   create_if_missing: true
   force_redirect: true
-  renew_hook: "systemctl reload apache2"
+  renew_hook: "systemctl reload nginx"
