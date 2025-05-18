@@ -1,10 +1,16 @@
 ---
+- name: Install NGINX
+  apt:
+    name: nginx
+    state: present
+    update_cache: yes
+
 - name: Stop and disable Apache
   service:
     name: apache2
     state: stopped
     enabled: no
-  ignore_errors: true
+  ignore_errors: yes
 
 - name: Create directory for Let's Encrypt verification
   file:
