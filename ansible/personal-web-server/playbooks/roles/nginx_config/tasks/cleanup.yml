@@ -3,32 +3,40 @@
   apt:
     name: nginx
     state: present
-    update_cache: true
+    update_cache: yes
 
 - name: Wait for systemd to recognize the new NGINX service
   ansible.builtin.command: systemctl daemon-reload
   changed_when: false
-
-- name: Enable and start NGINX service (using command)
-  ansible.builtin.command: systemctl start nginx
-  changed_when: true
-  ignore_errors: true
-
-- name: Enable NGINX service on boot
-  ansible.builtin.command: systemctl enable nginx
-  changed_when: true
-  ignore_errors: true
 
 - name: Stop and disable Apache
   service:
     name: apache2
     state: stopped
     enabled: no
-  ignore_errors: true
+  ignore_errors: yes
 
 - name: Create directory for Let's Encrypt verification
   file:
     path: /var/www/letsencrypt/.well-known/acme-challenge
     state: directory
     mode: '0755'
-    recurse: true
+    recurse: yes
+
+# Force start NGINX and make sure it's running before proceeding
+- name: Start NGINX service
+  ansible.builtin.command: systemctl start nginx
+  register: nginx_start
+  changed_when: true
+  ignore_errors: no
+
+- name: Enable NGINX service on boot
+  ansible.builtin.command: systemctl enable nginx
+  changed_when: true
+  ignore_errors: yes
+
+- name: Verify NGINX is running
+  ansible.builtin.command: systemctl status nginx
+  register: nginx_status
+  changed_when: false
+  failed_when: "'active (running)' not in nginx_status.stdout"
