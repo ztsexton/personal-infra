@@ -31,75 +31,36 @@ resource "cloudflare_record" "vigilo_root" {
   proxied = true  # Enable Cloudflare proxy
 }
 
-# Cloudflare Zone Settings for zachsexton.com
-resource "cloudflare_zone_settings_override" "zachsexton_settings" {
+# SSL specific settings for zachsexton.com
+resource "cloudflare_zone_settings_override" "zachsexton_ssl_settings" {
   zone_id = var.cloudflare_zone_id_zachsexton
   
   settings {
-    ssl = "strict" # This sets "Full (strict)" SSL mode
+    # Only include the specific settings we want to manage
+    ssl = "strict"                # This sets "Full (strict)" SSL mode
     always_use_https = "on"
-    min_tls_version = "1.2"
-    tls_1_3 = "on"
-  }
-
-  # Prevent read-only settings from being modified
-  lifecycle {
-    ignore_changes = [
-      settings.0.proxy_read_timeout,
-      settings.0.polish,
-      settings.0.response_buffering,
-      settings.0.image_resizing,
-      settings.0.prefetch_preload,
-      # Any other read-only settings that cause issues
-    ]
   }
 }
 
-# Cloudflare Zone Settings for petfoodfinder.app
-resource "cloudflare_zone_settings_override" "petfoodfinder_settings" {
+# SSL specific settings for petfoodfinder.app
+resource "cloudflare_zone_settings_override" "petfoodfinder_ssl_settings" {
   zone_id = var.cloudflare_zone_id_petfoodfinder
   
   settings {
-    ssl = "strict" # This sets "Full (strict)" SSL mode
+    # Only include the specific settings we want to manage
+    ssl = "strict"                # This sets "Full (strict)" SSL mode
     always_use_https = "on"
-    min_tls_version = "1.2"
-    tls_1_3 = "on"
-  }
-
-  # Prevent read-only settings from being modified
-  lifecycle {
-    ignore_changes = [
-      settings.0.proxy_read_timeout,
-      settings.0.polish,
-      settings.0.response_buffering,
-      settings.0.image_resizing,
-      settings.0.prefetch_preload,
-      # Any other read-only settings that cause issues
-    ]
   }
 }
 
-# Cloudflare Zone Settings for vigilo.dev
-resource "cloudflare_zone_settings_override" "vigilo_settings" {
+# SSL specific settings for vigilo.dev
+resource "cloudflare_zone_settings_override" "vigilo_ssl_settings" {
   zone_id = var.cloudflare_zone_id_vigilo
   
   settings {
-    ssl = "strict" # This sets "Full (strict)" SSL mode
+    # Only include the specific settings we want to manage
+    ssl = "strict"                # This sets "Full (strict)" SSL mode
     always_use_https = "on"
-    min_tls_version = "1.2"
-    tls_1_3 = "on"
-  }
-
-  # Prevent read-only settings from being modified
-  lifecycle {
-    ignore_changes = [
-      settings.0.proxy_read_timeout,
-      settings.0.polish,
-      settings.0.response_buffering,
-      settings.0.image_resizing,
-      settings.0.prefetch_preload,
-      # Any other read-only settings that cause issues
-    ]
   }
 }
 
