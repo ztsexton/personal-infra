@@ -63,7 +63,7 @@
     system: yes
     createhome: no
     comment: "Web Server User"
-  when: www_data_user_exists.rc != 0
+  when: www_data_user_exists.failed or not www_data_user_exists.ansible_facts.getent_passwd.www-data is defined
 
 - name: Check if nginx user exists
   ansible.builtin.getent:
@@ -79,7 +79,7 @@
     system: yes
     createhome: no
     comment: "NGINX web server"
-  when: nginx_user_exists.rc != 0
+  when: nginx_user_exists.failed or not nginx_user_exists.ansible_facts.getent_passwd.nginx is defined
 
 - name: Ensure nginx.conf uses the correct user
   ansible.builtin.lineinfile:
