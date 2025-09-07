@@ -140,6 +140,77 @@ The Ansible + nginx deployment has been retired. Files kept only for historical 
 - Add metrics stack (kube-prometheus-stack) & centralized logging.
 - Evaluate external-dns + wildcard cert.
 
+## GitOps Bootstrap (k3s + Argo CD)
+
+The server now self-installs Argo CD via cloud-init + k3s HelmChart CR. A root "app-of-apps" Application points at `k8s/argocd/root` (add this directory & child Applications in a future commit).
+
+### Bootstrap Variables (Terraform)
+
+Defined in `variables.tf`:
+
+| Variable | Secret? | Purpose |
+|----------|---------|---------|
+| `k3s_token` | yes | Fixed shared token for server + future agent nodes (stable across rebuilds) |
+| `disable_traefik` | no | Disable bundled Traefik (set false if you want built-in ingress) |
+| `argocd_helm_version` | no | Argo CD chart version (argo-helm repo) |
+| `argocd_domain` | no | Ingress host for Argo CD UI (e.g. `argocd.example.com`) |
+| `argocd_admin_password_bcrypt` | yes | Pre-bcrypted admin password hash for deterministic bootstrap |
+| `git_repo_url` | no | Git repository URL for manifests |
+| `git_root_app_path` | no | Path to root Argo CD app-of-apps directory inside repo |
+| `git_revision` | no | Git revision (branch / tag / commit) |
+
+Only TWO secrets must be generated manually: `k3s_token` and `argocd_admin_password_bcrypt`.
+
+### Generate Secrets
+
+Strong k3s token (hex 64 chars):
+
+```bash
+openssl rand -hex 32
+```
+
+Argo CD admin password bcrypt (choose a plaintext you remember; DO NOT store plaintext):
+
+```bash
+sudo apt-get update && sudo apt-get install -y apache2-utils # if htpasswd missing
+htpasswd -nbBC 12 admin 'YourPlaintextPassword' | cut -d: -f2
+```
+
+The output starts with `$2y$` and is ~60 chars. Use that as `argocd_admin_password_bcrypt`.
+
+### Setting in Scalr
+
+Store as workspace/environment variables (sensitive):
+
+```
+TF_VAR_k3s_token = <hex token>
+TF_VAR_argocd_admin_password_bcrypt = <bcrypt hash>
+```
+
+Non-secret variables (may go in `terraform.tfvars` or Scalr var UI):
+
+```
+argocd_domain = "argocd.example.com"
+disable_traefik = true
+```
+
+### Rebuild Behavior
+
+Destroying and recreating the server applies the same cloud-init:
+
+1. k3s installs using fixed token.
+2. HelmChart installs Argo CD.
+3. Root Application syncs child Applications (once committed).
+
+To change admin password: generate new bcrypt, update variable, re-provision (Argo CD will reconcile secret). Existing session cookies become invalid.
+
+### Future Enhancements
+
+- Move Argo CD HelmChart YAML itself into Git with a minimal bootstrap loader.
+- Add External Secrets + SOPS for production secret management.
+- Use ApplicationSet for automatic per-folder discovery of apps.
+- Add ingress controller (if Traefik disabled) via separate HelmChart manifest.
+
 ## Migration Summary
 
 Old: Terraform + Ansible -> Nginx vhosts + certbot  
