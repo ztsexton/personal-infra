@@ -32,6 +32,7 @@ spec:
 ```
 
 Add additional Application manifests for:
+
 - cert-manager (CRDs should be installed via its own HelmChart or pre-seeded; until then you can keep manual install)
 - ingress / shared resources
 - namespaces (or rely on CreateNamespace=true)
