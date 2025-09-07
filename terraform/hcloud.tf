@@ -50,8 +50,7 @@ runcmd:
   - cp /etc/rancher/k3s/k3s.yaml /root/.kube/config
   - chown root:root /root/.kube/config
   - chmod 600 /root/.kube/config
-  - PUBIP=$(curl -s ifconfig.me || curl -s https://api.ipify.org || echo 127.0.0.1)
-  - sed -i "s/127.0.0.1/${PUBIP}/" /root/.kube/config || true
+  - sed -i "s/127.0.0.1/$(curl -s ifconfig.me || curl -s https://api.ipify.org || echo 127.0.0.1)/" /root/.kube/config || true
   - echo "[cloud-init] k3s installed" | systemd-cat -t cloud-init -p info
 EOF
 }
