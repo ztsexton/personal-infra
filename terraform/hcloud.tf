@@ -49,15 +49,24 @@ resource "hcloud_server" "vps" {
         # Firewall
         ufw default deny incoming || true
         ufw default allow outgoing || true
-  for p in 22 80 443; do ufw allow $p/tcp || true; done
+        for p in 22 80 443; do ufw allow $p/tcp || true; done
         echo 'y' | ufw enable || true
 
-        # Install k3s
-        export K3S_TOKEN="${var.k3s_token}"
-        DISABLE_ARG="${var.disable_traefik ? "--disable traefik" : ""}"
-        INSTALL_K3S_EXEC="server $${DISABLE_ARG} --write-kubeconfig-mode=600"
-        echo "[bootstrap] Installing k3s (DISABLE_TRAEFIK=${var.disable_traefik})" | systemd-cat -t bootstrap -p info
-        curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="$${INSTALL_K3S_EXEC}" sh -
+        # Install k3s (idempotent guard)
+        if ! command -v k3s >/dev/null 2>&1; then
+          export K3S_TOKEN="${var.k3s_token}"
+          DISABLE_ARG="${var.disable_traefik ? "--disable traefik" : ""}"
+          INSTALL_K3S_EXEC="server $${DISABLE_ARG} --write-kubeconfig-mode=600"
+          echo "[bootstrap] Installing k3s (DISABLE_TRAEFIK=${var.disable_traefik})" | systemd-cat -t bootstrap -p info
+          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="$${INSTALL_K3S_EXEC}" sh -
+        else
+          echo "[bootstrap] k3s already installed; skipping" | systemd-cat -t bootstrap -p info
+        fi
+
+        # Ensure kubectl symlink exists (k3s usually makes this)
+        if ! command -v kubectl >/dev/null 2>&1 && [ -x /usr/local/bin/k3s ]; then
+          ln -s /usr/local/bin/k3s /usr/local/bin/kubectl || true
+        fi
 
         # kubeconfig convenience (public IP swap)
         mkdir -p /root/.kube
@@ -69,6 +78,16 @@ resource "hcloud_server" "vps" {
         # Manifests directory
         MANIFEST_DIR=/var/lib/rancher/k3s/server/manifests
         mkdir -p "$${MANIFEST_DIR}"
+
+        # Ensure Argo CD namespace exists early (k3s will auto-apply)
+        cat > "$${MANIFEST_DIR}/00-argocd-namespace.yaml" <<'NS'
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: argocd
+          labels:
+            app.kubernetes.io/name: argocd
+        NS
 
         # Argo CD HelmChart (k3s helm controller will reconcile)
         cat > "$${MANIFEST_DIR}/argocd.helmchart.yaml" <<'HCH'
@@ -100,7 +119,68 @@ resource "hcloud_server" "vps" {
         HCH
 
         # Root app-of-apps Application (relies on Argo CD CRDs being present shortly after HelmChart sync)
-        cat > "$${MANIFEST_DIR}/argocd-root-app.yaml" <<'APP'
+        # We add a small job that waits for Application CRD to exist, then applies the root Application.
+        # (Because k3s applies these manifests immediately; CRD race can happen.)
+        cat > "$${MANIFEST_DIR}/argocd-root-app-wait.yaml" <<'APPWAIT'
+        apiVersion: batch/v1
+        kind: Job
+        metadata:
+          name: argocd-root-app-seed
+          namespace: argocd
+        spec:
+          template:
+            spec:
+              serviceAccountName: default
+              restartPolicy: OnFailure
+              containers:
+                - name: seed
+                  image: alpine:3.19
+                  command:
+                    - /bin/sh
+                    - -c
+                    - |
+                      set -e
+                      echo "[seed] Waiting for Application CRD"
+                      for i in $(seq 1 60); do
+                        if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
+                          echo "[seed] CRD present"
+                          break
+                        fi
+                        sleep 5
+                      done
+                      if ! kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
+                        echo "[seed] CRD never became available" >&2
+                        exit 1
+                      fi
+                      cat <<'INNERAPP' > /tmp/root-app.yaml
+        apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: root
+          namespace: argocd
+        spec:
+          project: default
+          source:
+            repoURL: ${var.git_repo_url}
+            path: ${var.git_root_app_path}
+            targetRevision: ${var.git_revision}
+          destination:
+            server: https://kubernetes.default.svc
+            namespace: argocd
+          syncPolicy:
+            automated:
+              prune: true
+              selfHeal: true
+            syncOptions:
+              - CreateNamespace=true
+        INNERAPP
+                      echo "[seed] Applying root Application"
+                      kubectl apply -f /tmp/root-app.yaml
+                      echo "[seed] Done"
+        APPWAIT
+
+        # (Leaving original HelmChart-based Argo install; Job will inject the root Application once CRD ready.)
+        # NOTE: The previous direct Application manifest is replaced by the wait Job approach for reliability.
         apiVersion: argoproj.io/v1alpha1
         kind: Application
         metadata:
