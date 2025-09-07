@@ -52,7 +52,7 @@ resource "hcloud_server" "vps" {
         # Firewall
         ufw default deny incoming || true
         ufw default allow outgoing || true
-        for p in 22 80 443; do ufw allow ${p}/tcp || true; done
+  for p in 22 80 443; do ufw allow $p/tcp || true; done
         echo 'y' | ufw enable || true
 
         # Install k3s
