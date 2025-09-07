@@ -8,6 +8,16 @@ resource "cloudflare_record" "zachsexton_root" {
   proxied = false # Disable Cloudflare proxy - DNS only
 }
 
+# Argo CD subdomain (UI / API)
+resource "cloudflare_record" "zachsexton_argocd" {
+  zone_id = var.cloudflare_zone_id_zachsexton
+  name    = "argocd"            # argocd.zachsexton.com
+  content = hcloud_server.vps.ipv4_address
+  type    = "A"
+  ttl     = 300                  # Slightly lower TTL for faster changes
+  proxied = false                # Keep DNS only (can enable proxy later if desired)
+}
+
 resource "cloudflare_record" "petfoodfinder_root" {
   zone_id = var.cloudflare_zone_id_petfoodfinder
   name    = "@"
