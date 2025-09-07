@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: petfoodfinder-app
+  namespace: web
+spec:
+  secretName: petfoodfinder-app-tls
+  dnsNames:
+    - petfoodfinder.app
+  issuerRef:
+    name: cloudflare-dns
+    kind: ClusterIssuer

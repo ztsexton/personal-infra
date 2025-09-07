@@ -5,7 +5,7 @@ Infrastructure as Code (IaC) for personal multi-domain hosting. Current stack:
 - Hetzner Cloud (Terraform) single VPS (can grow to small cluster)
 - k3s (lightweight Kubernetes) installed via cloud-init
 - Cloudflare DNS (Terraform) + DNS01 certificates via cert-manager
-- Ingress (Traefik class) terminating TLS for multiple domains
+- Ingress (Traefik via Argo CD Helm chart) terminating TLS for multiple domains
 - Git-based declarative manifests in `k8s/`
 
 > NOTE: Previous Ansible + nginx + certbot approach is deprecated (see `ansible/DEPRECATED.md`).
@@ -65,38 +65,58 @@ Key files:
 - `k8s/ingress/ingress.yaml` (multi-host Ingress + shared TLS secret)
 - `k8s/cert-manager/clusterissuer.yaml` (ClusterIssuer using Cloudflare DNS01)
 
-### Apply Core Stack
+### Apply Core Stack (GitOps)
 
-Install cert-manager (CRDs & controllers) BEFORE applying ClusterIssuer:
+Argo CD root app sync applies child Applications:
+
+| Component      | Argo Application File                          | Notes |
+|----------------|-------------------------------------------------|-------|
+| Traefik        | `k8s/argocd/root/traefik.yaml`                 | HostPort single-node ingress controller |
+| cert-manager   | `k8s/argocd/root/cert-manager.yaml`            | Installs CRDs + controllers (installCRDs=true) |
+| ClusterIssuers | `k8s/argocd/root/issuers.yaml`                 | Applies `k8s/cert-manager/clusterissuer.yaml` after controller |
+| Apps           | `k8s/argocd/root/apps.yaml`                    | Recurses through `k8s/apps/` |
+
+One manual prerequisite (not stored in Git): create the Cloudflare API token secret (until you adopt SealedSecrets/SOPS):
 
 ```bash
-# Install cert-manager (version example; update as needed)
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.0/cert-manager.crds.yaml
-kubectl create namespace cert-manager
-kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.15.0/cert-manager.yaml
-
-# Cloudflare API token secret (replace TOKEN_VALUE)
 kubectl -n cert-manager create secret generic cloudflare-api-token \
-  --from-literal=api-token=TOKEN_VALUE
-
-# Namespaces & apps
-kubectl apply -f k8s/namespaces/namespaces.yaml
-kubectl apply -f k8s/apps/
-
-# ClusterIssuer
-kubectl apply -f k8s/cert-manager/clusterissuer.yaml
-
-# Ingress (requests certificate automatically)
-kubectl apply -f k8s/ingress/ingress.yaml
+  --from-literal=api-token=<TOKEN_VALUE>
 ```
 
-Certificate issuance will create secret `multi-domain-tls` in `web` namespace.
+After Argo syncs and the secret exists, cert-manager will solve DNS01 challenges and create `multi-domain-tls` in namespace `web` referenced by Ingress objects.
 
-### Traefik IngressClass
+### Traefik (Helm Managed)
 
-k3s ships with Traefik by default IF not disabled. Cloud-init disables it (`--disable traefik`). If you want to re-enable Traefik instead of a custom ingress controller, remove that flag and re-provision OR install your own controller (nginx ingress, Traefik Helm chart, Envoy Gateway). Adjust `ingressClassName` accordingly.
+Traefik is deployed declaratively via an Argo CD `Application` (`k8s/argocd/root/traefik.yaml`) using the official Helm chart. k3s bundled Traefik is disabled at provisioning time (`disable_traefik = true` Terraform variable) to avoid duplicate controllers.
 
-Currently `ingress/ingress.yaml` sets `ingressClassName: traefik`. If Traefik is disabled you must deploy an ingress controller that registers that class name or update the manifest.
+Key Helm values (single-node hostPort mode):
+
+```yaml
+service:
+  enabled: false
+ports:
+  web:
+    port: 8000
+    expose: true
+    exposedPort: 80
+    protocol: TCP
+  websecure:
+    port: 8443
+    expose: true
+    exposedPort: 443
+    protocol: TCP
+ingressClass:
+  enabled: true
+  isDefaultClass: true
+providers:
+  kubernetesIngress:
+    publishedService:
+      enabled: false
+```
+
+Ingress manifests use `ingressClassName: traefik`. If you ever re-enable the bundled Traefik you must ensure only one controller responds for that class or change the class name in manifests.
+
+To upgrade Traefik: bump `targetRevision` in `traefik.yaml` and let Argo CD sync.
 
 ## Adding a New App
 
@@ -111,9 +131,15 @@ To auto-manage DNS when you scale or change Services, deploy external-dns with C
 
 ## cert-manager Notes
 
-- Uses DNS01 challenge with Cloudflare token (least privilege: Zone DNS Edit only).
-- Multi-domain cert stored in one secret; you can switch to per-domain certs by splitting Ingress resources.
-- For wildcard support add `*.example.com` to Ingress TLS hosts and re-issue.
+- DNS01 challenge with Cloudflare token (least privilege: Zone DNS Edit only).
+- Explicit per-domain `Certificate` CRs in `k8s/cert-manager/certificates/`:
+  - `zachsexton-com.yaml` -> secret `zachsexton-com-tls`
+  - `petfoodfinder-app.yaml` -> secret `petfoodfinder-app-tls`
+  - `vigilo-dev.yaml` -> secret `vigilo-dev-tls`
+- Ingress manifests now reference these per-domain secrets (no cert-manager annotations needed).
+- Advantages vs single multi-domain cert: independent renewals, easier revocation/rotation for one domain, clearer separation.
+- To add a new domain: create a new `Certificate` file, commit, wait for Argo sync, then reference the new secret in an Ingress.
+- For wildcard support, add another `Certificate` (e.g. `*.zachsexton.com`) rather than expanding existing single-host certs unless you need consolidation.
 
 ## Scaling Path
 
@@ -182,14 +208,14 @@ The output starts with `$2y$` and is ~60 chars. Use that as `argocd_admin_passwo
 
 Store as workspace/environment variables (sensitive):
 
-```
-TF_VAR_k3s_token = <hex token>
-TF_VAR_argocd_admin_password_bcrypt = <bcrypt hash>
+```bash
+TF_VAR_k3s_token=<hex token>
+TF_VAR_argocd_admin_password_bcrypt=<bcrypt hash>
 ```
 
 Non-secret variables (may go in `terraform.tfvars` or Scalr var UI):
 
-```
+```hcl
 argocd_domain = "argocd.example.com"
 disable_traefik = true
 ```
@@ -246,3 +272,36 @@ Minor tweaks (e.g., extra packages) won’t retroactively apply. For idempotent 
 - Move complex logic into a repo-cloned bootstrap script executed via a oneshot systemd unit you can edit and re-run.
 
 For now, keep cloud-init minimal and manage everything else declaratively in k8s.
+
+## Post-Apply Ingress Verification
+
+After provisioning (with `disable_traefik = true`) and Argo CD sync:
+
+```bash
+# 1. Confirm only Helm Traefik controller exists
+kubectl get pods -n traefik
+kubectl get pods -A | grep -i traefik
+
+# 2. Check IngressClass
+kubectl get ingressclass traefik -o yaml | grep -i 'is-default-class'
+
+# 3. Verify Ingress objects
+kubectl get ingress -n web -o wide
+
+# 4. Test routing
+NODE_IP=<public-ip>
+curl -H 'Host: zachsexton.com' http://$NODE_IP/ -I
+curl -k -H 'Host: zachsexton.com' https://$NODE_IP/ -I
+
+# 5. Certificate secret present
+kubectl get secret -n web multi-domain-tls -o yaml | grep tls.crt
+```
+
+If legacy bundled Traefik still shows up (namespace kube-system), remove it:
+
+```bash
+kubectl -n kube-system delete deploy traefik svc traefik || true
+kubectl -n kube-system delete svc -l app=traefik || true
+```
+
+Re-run the checks afterward.
