@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: petfoodfinder
+  namespace: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: petfoodfinder
+  template:
+    metadata:
+      labels:
+        app: petfoodfinder
+    spec:
+      containers:
+        - name: web
+          image: hashicorp/http-echo:0.2.3
+          args:
+            - "-text=Hello from petfoodfinder.app"
+          ports:
+            - containerPort: 5678
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: petfoodfinder
+  namespace: web
+spec:
+  selector:
+    app: petfoodfinder
+  ports:
+    - port: 80
+      targetPort: 5678
