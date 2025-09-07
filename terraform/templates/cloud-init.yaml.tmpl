@@ -1,0 +1,135 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - curl
+  - ca-certificates
+  - ufw
+write_files:
+  - path: /root/bootstrap.sh
+    permissions: '0755'
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      echo "[bootstrap] Starting" | systemd-cat -t bootstrap -p info
+      # Firewall
+      ufw default deny incoming || true
+      ufw default allow outgoing || true
+      for p in 22 80 443; do ufw allow $p/tcp || true; done
+      echo 'y' | ufw enable || true
+
+      # Install k3s (idempotent guard)
+      if ! command -v k3s >/dev/null 2>&1; then
+        export K3S_TOKEN="${k3s_token}"
+        DISABLE_ARG="${disable_arg}"
+        INSTALL_K3S_EXEC="server $DISABLE_ARG --write-kubeconfig-mode=600"
+        echo "[bootstrap] Installing k3s (DISABLE_TRAEFIK=${disable_traefik})" | systemd-cat -t bootstrap -p info
+        curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="$INSTALL_K3S_EXEC" sh -
+      else
+        echo "[bootstrap] k3s already installed; skipping" | systemd-cat -t bootstrap -p info
+      fi
+
+      # Ensure kubectl symlink exists
+      if ! command -v kubectl >/dev/null 2>&1 && [ -x /usr/local/bin/k3s ]; then
+        ln -s /usr/local/bin/k3s /usr/local/bin/kubectl || true
+      fi
+
+      # kubeconfig convenience
+      mkdir -p /root/.kube
+      cp /etc/rancher/k3s/k3s.yaml /root/.kube/config
+      chmod 600 /root/.kube/config
+      PUBIP=$(curl -s ifconfig.me || curl -s https://api.ipify.org || echo 127.0.0.1)
+      sed -i "s/127.0.0.1/$PUBIP/" /root/.kube/config || true
+
+      MANIFEST_DIR=/var/lib/rancher/k3s/server/manifests
+      mkdir -p "$MANIFEST_DIR"
+
+      # Argo CD namespace
+      cat > "$MANIFEST_DIR/00-argocd-namespace.yaml" <<'NS'
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: argocd
+        labels:
+          app.kubernetes.io/name: argocd
+      NS
+
+      # Argo CD HelmChart
+      cat > "$MANIFEST_DIR/argocd.helmchart.yaml" <<'HCH'
+      apiVersion: helm.cattle.io/v1
+      kind: HelmChart
+      metadata:
+        name: argo-cd
+        namespace: kube-system
+      spec:
+        repo: https://argoproj.github.io/argo-helm
+        chart: argo-cd
+        targetNamespace: argocd
+        version: ${argocd_helm_version}
+        valuesContent: |
+          server:
+            ingress:
+              enabled: true
+              hosts:
+                - ${argocd_domain}
+              annotations:
+                cert-manager.io/cluster-issuer: cloudflare-dns
+              tls: true
+          configs:
+            params:
+              server.insecure: true
+            secret:
+              argocdServerAdminPassword: ${argocd_admin_password_bcrypt}
+      HCH
+
+      echo "[bootstrap] Waiting for Argo Application CRD" | systemd-cat -t bootstrap -p info
+      for i in $(seq 1 60); do
+        if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
+          break
+        fi
+        sleep 5
+      done
+      if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
+        cat > "$MANIFEST_DIR/10-argocd-root-application.yaml" <<'ROOTAPP'
+        apiVersion: argoproj.io/v1alpha1
+        kind: Application
+        metadata:
+          name: root
+          namespace: argocd
+          annotations:
+            argocd.argoproj.io/sync-wave: "-2"
+        spec:
+          project: default
+          source:
+            repoURL: ${git_repo_url}
+            path: ${git_root_app_path}
+            targetRevision: ${git_revision}
+            directory:
+              recurse: true
+          destination:
+            server: https://kubernetes.default.svc
+            namespace: argocd
+          syncPolicy:
+            automated:
+              prune: true
+              selfHeal: true
+            syncOptions:
+              - CreateNamespace=true
+        ROOTAPP
+        echo "[bootstrap] Root Argo Application manifest written" | systemd-cat -t bootstrap -p info
+      else
+        echo "[bootstrap] Application CRD not found after timeout" | systemd-cat -t bootstrap -p warning
+      fi
+
+      echo "[bootstrap] Files seeded. Waiting for Argo CD server" | systemd-cat -t bootstrap -p info
+      for i in {1..40}; do
+        if kubectl get pods -n argocd 2>/dev/null | grep -q 'argocd-server'; then
+          echo "[bootstrap] Argo CD detected" | systemd-cat -t bootstrap -p info
+          break
+        fi
+        sleep 15
+      done
+      echo "[bootstrap] Complete" | systemd-cat -t bootstrap -p info
+runcmd:
+  - /root/bootstrap.sh

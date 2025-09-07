@@ -1,22 +1,21 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: cert-manager
+  name: root
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-wave: "-2"
 spec:
   project: default
   source:
-    repoURL: https://charts.jetstack.io
-    chart: cert-manager
-    targetRevision: v1.15.0
-    helm:
-      values: |
-        installCRDs: true
+    repoURL: https://github.com/ztsexton/personal-infra.git
+    path: k8s/argocd/root
+    targetRevision: HEAD
+    directory:
+      recurse: true
   destination:
     server: https://kubernetes.default.svc
-    namespace: cert-manager
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true
