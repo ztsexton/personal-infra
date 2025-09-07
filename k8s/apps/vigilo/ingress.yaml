@@ -3,14 +3,12 @@ kind: Ingress
 metadata:
   name: vigilo
   namespace: web
-  annotations:
-    cert-manager.io/cluster-issuer: cloudflare-dns
 spec:
   ingressClassName: traefik
   tls:
     - hosts:
         - vigilo.dev
-      secretName: multi-domain-tls
+      secretName: vigilo-dev-tls
   rules:
     - host: vigilo.dev
       http:
