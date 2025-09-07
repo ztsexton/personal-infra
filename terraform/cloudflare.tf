@@ -1,8 +1,3 @@
-# Cloudflare provider configuration
-provider "cloudflare" {
-  api_token = var.cloudflare_api_token
-}
-
 # Cloudflare DNS Records (DNS only, no proxy)
 resource "cloudflare_record" "zachsexton_root" {
   zone_id = var.cloudflare_zone_id_zachsexton
@@ -10,7 +5,7 @@ resource "cloudflare_record" "zachsexton_root" {
   content = hcloud_server.vps.ipv4_address
   type    = "A"
   ttl     = 3600  # Standard TTL for DNS records
-  proxied = false  # Disable Cloudflare proxy - DNS only
+  proxied = false # Disable Cloudflare proxy - DNS only
 }
 
 resource "cloudflare_record" "petfoodfinder_root" {
@@ -19,7 +14,7 @@ resource "cloudflare_record" "petfoodfinder_root" {
   content = hcloud_server.vps.ipv4_address
   type    = "A"
   ttl     = 3600  # Standard TTL for DNS records
-  proxied = false  # Disable Cloudflare proxy - DNS only
+  proxied = false # Disable Cloudflare proxy - DNS only
 }
 
 resource "cloudflare_record" "vigilo_root" {
@@ -28,7 +23,7 @@ resource "cloudflare_record" "vigilo_root" {
   content = hcloud_server.vps.ipv4_address
   type    = "A"
   ttl     = 3600  # Standard TTL for DNS records
-  proxied = false  # Disable Cloudflare proxy - DNS only
+  proxied = false # Disable Cloudflare proxy - DNS only
 }
 
 # DNSSEC settings can still be maintained
