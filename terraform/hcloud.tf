@@ -29,9 +29,6 @@ resource "hcloud_server" "vps" {
   #  - Set deterministic Argo CD admin password (bcrypt hash provided via var.argocd_admin_password_bcrypt)
   #  - Adjust kubeconfig to use public IP for convenience (NOT for prod automation)
   # NOTE: Any sensitive values in user_data will be stored in Terraform state. Consider secret management later (e.g. External Secrets + SOPS).
-  lifecycle {
-    create_before_destroy = true
-  }
 
   user_data = <<-EOF
   #cloud-config
