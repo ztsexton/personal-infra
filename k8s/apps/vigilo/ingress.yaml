@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: vigilo
+  namespace: web
+  annotations:
+    cert-manager.io/cluster-issuer: cloudflare-dns
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - vigilo.dev
+      secretName: multi-domain-tls
+  rules:
+    - host: vigilo.dev
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: vigilo
+                port:
+                  number: 80

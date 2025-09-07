@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: petfoodfinder
+  namespace: web
+  annotations:
+    cert-manager.io/cluster-issuer: cloudflare-dns
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - petfoodfinder.app
+      secretName: multi-domain-tls
+  rules:
+    - host: petfoodfinder.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: petfoodfinder
+                port:
+                  number: 80
