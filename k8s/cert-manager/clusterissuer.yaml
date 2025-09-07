@@ -1,0 +1,40 @@
+## ClusterIssuers for Let's Encrypt via Cloudflare DNS01
+## 1. Staging (rate-limit friendly, non-trusted) -> use first when testing.
+## 2. Production (trusted certs) -> switch Ingress annotation when ready.
+##
+## Replace you@example.com with a real email before applying (or let bootstrap script patch it).
+## Ensure secret `cloudflare-api-token` exists in cert-manager namespace with key `api-token`.
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: cloudflare-dns-staging
+spec:
+  acme:
+    email: you@example.com # TODO: replace with real email
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: cloudflare-dns-staging-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: cloudflare-dns
+spec:
+  acme:
+    email: you@example.com # TODO: replace with real email
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: cloudflare-dns-issuer-account-key
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token

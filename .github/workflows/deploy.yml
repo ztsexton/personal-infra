@@ -15,11 +15,6 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Install Ansible
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y ansible python3-jmespath
-
     - name: Add SSH key
       uses: webfactory/ssh-agent@v0.9.0
       with:
@@ -29,17 +24,3 @@ jobs:
       run: |
         mkdir -p ~/.ssh
         ssh-keyscan -H 5.161.81.57 >> ~/.ssh/known_hosts
-
-    - name: Ansible check‑mode (dry run)
-      run: |
-        ansible-playbook \
-          -i ansible/inventory/hosts.ini \
-          ansible/personal-web-server/playbooks/site.yml \
-          --check --diff
-
-    - name: Apply configuration
-      run: |
-        ansible-playbook \
-          -i ansible/inventory/hosts.ini \
-          ansible/personal-web-server/playbooks/site.yml \
-          --diff
