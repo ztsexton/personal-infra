@@ -1,34 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: personal-site
+  name: petfoodfinder
   namespace: web
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: personal-site
+      app: petfoodfinder
   template:
     metadata:
       labels:
-        app: personal-site
+        app: petfoodfinder
     spec:
       containers:
         - name: web
           image: hashicorp/http-echo:0.2.3
           args:
-            - "-text=Hello from zachsexton.com"
+            - "-text=Hello from petfoodfinder.app"
           ports:
             - containerPort: 5678
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: personal-site
-  namespace: web
-spec:
-  selector:
-    app: personal-site
-  ports:
-    - port: 80
-      targetPort: 5678

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: vigilo
+  namespace: web
+spec:
+  selector:
+    app: vigilo
+  ports:
+    - port: 80
+      targetPort: 5678
