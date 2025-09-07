@@ -9,3 +9,52 @@ variable "ssh_public_key" {
   type        = string
   description = "Automation ssh public key"
 }
+
+# --- GitOps / k3s bootstrap variables ---
+
+variable "k3s_token" {
+  description = "Fixed shared secret token for k3s cluster (used by server + future agents). Generate a strong random string."
+  type        = string
+  sensitive   = true
+}
+
+variable "disable_traefik" {
+  description = "Whether to disable the bundled Traefik in k3s (set true if you'll deploy your own ingress controller via Argo CD)."
+  type        = bool
+  default     = true
+}
+
+variable "argocd_helm_version" {
+  description = "Argo CD Helm chart version (argo-helm repo)."
+  type        = string
+  default     = "7.6.9"
+}
+
+variable "argocd_domain" {
+  description = "Public domain for Argo CD ingress host (e.g. argocd.zachsexton.com)."
+  type        = string
+}
+
+variable "argocd_admin_password_bcrypt" {
+  description = "Pre-bcrypted admin password for deterministic Argo CD bootstrap (htpasswd -nbBC 10 admin 'pass' | cut -d: -f2)."
+  type        = string
+  sensitive   = true
+}
+
+variable "git_repo_url" {
+  description = "Git repository URL containing Kubernetes manifests / Applications."
+  type        = string
+  default     = "https://github.com/ztsexton/personal-infra.git"
+}
+
+variable "git_root_app_path" {
+  description = "Path within repo for the root (app-of-apps) Argo CD directory."
+  type        = string
+  default     = "k8s/argocd/root"
+}
+
+variable "git_revision" {
+  description = "Git revision (branch, tag, or commit) Argo CD should track."
+  type        = string
+  default     = "HEAD"
+}
