@@ -5,6 +5,7 @@ packages:
   - curl
   - ca-certificates
   - ufw
+  - iptables-persistent
 write_files:
   - path: /root/bootstrap.sh
     permissions: '0755'
@@ -18,6 +19,20 @@ write_files:
       ufw default allow outgoing || true
       for p in 22 80 443; do ufw allow $p/tcp || true; done
       echo 'y' | ufw enable || true
+
+      # Port forwarding for Traefik NodePort (80→30080, 443→30443)
+      # This forwards standard HTTP/HTTPS ports to Traefik's NodePort service
+      # - Port 80 (HTTP) → NodePort 30080 (Traefik web entrypoint)
+      # - Port 443 (HTTPS) → NodePort 30443 (Traefik websecure entrypoint)
+      # This allows external visitors to access sites via standard ports without :30080/:30443
+      echo "[bootstrap] Setting up port forwarding for Traefik" | systemd-cat -t bootstrap -p info
+      iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 30080
+      iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 30443
+      
+      # Install iptables-persistent and save rules
+      apt-get install -y iptables-persistent
+      iptables-save > /etc/iptables/rules.v4
+      echo "[bootstrap] Port forwarding configured and saved" | systemd-cat -t bootstrap -p info
 
       # Install k3s (idempotent guard)
       if ! command -v k3s >/dev/null 2>&1; then
