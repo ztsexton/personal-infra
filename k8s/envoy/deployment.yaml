@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: envoy-proxy
+  namespace: envoy-system
+  labels:
+    app: envoy-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: envoy-proxy
+  template:
+    metadata:
+      labels:
+        app: envoy-proxy
+    spec:
+      containers:
+      - name: envoy
+        image: envoyproxy/envoy:v1.28-latest
+        ports:
+        - containerPort: 8080
+          name: http
+          hostPort: 80
+        - containerPort: 8443
+          name: https
+          hostPort: 443
+        - containerPort: 9901
+          name: admin
+        volumeMounts:
+        - name: envoy-config
+          mountPath: /etc/envoy
+        - name: tls-certs
+          mountPath: /etc/ssl/certs
+          readOnly: true
+        - name: tls-private
+          mountPath: /etc/ssl/private
+          readOnly: true
+        command:
+        - /usr/local/bin/envoy
+        args:
+        - -c
+        - /etc/envoy/envoy.yaml
+        - --service-cluster
+        - envoy-proxy
+        - --service-node
+        - envoy-proxy
+        - --log-level
+        - info
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /ready
+            port: 9901
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 9901
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: envoy-config
+        configMap:
+          name: envoy-config
+      - name: tls-certs
+        secret:
+          secretName: envoy-tls-cert
+          items:
+          - key: tls.crt
+            path: tls.crt
+      - name: tls-private
+        secret:
+          secretName: envoy-tls-cert
+          items:
+          - key: tls.key
+            path: tls.key
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet

@@ -18,6 +18,36 @@ resource "cloudflare_record" "zachsexton_argocd" {
   proxied = false                # Keep DNS only (can enable proxy later if desired)
 }
 
+# Petfoodfinder subdomain
+resource "cloudflare_record" "zachsexton_petfoodfinder" {
+  zone_id = var.cloudflare_zone_id_zachsexton
+  name    = "petfoodfinder"      # petfoodfinder.zachsexton.com
+  content = hcloud_server.vps.ipv4_address
+  type    = "A"
+  ttl     = 300
+  proxied = false
+}
+
+# Vigilo subdomain
+resource "cloudflare_record" "zachsexton_vigilo" {
+  zone_id = var.cloudflare_zone_id_zachsexton
+  name    = "vigilo"            # vigilo.zachsexton.com
+  content = hcloud_server.vps.ipv4_address
+  type    = "A"
+  ttl     = 300
+  proxied = false
+}
+
+# Spotifybutler subdomain
+resource "cloudflare_record" "zachsexton_spotifybutler" {
+  zone_id = var.cloudflare_zone_id_zachsexton
+  name    = "spotifybutler"     # spotifybutler.zachsexton.com
+  content = hcloud_server.vps.ipv4_address
+  type    = "A"
+  ttl     = 300
+  proxied = false
+}
+
 resource "cloudflare_record" "petfoodfinder_root" {
   zone_id = var.cloudflare_zone_id_petfoodfinder
   name    = "@"
