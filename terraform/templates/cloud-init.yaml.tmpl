@@ -83,44 +83,101 @@ write_files:
               argocdServerAdminPassword: ${argocd_admin_password_bcrypt}
       HCH
 
-      echo "[bootstrap] Waiting for Argo Application CRD" | systemd-cat -t bootstrap -p info
-      for i in $(seq 1 60); do
-        if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
-          break
-        fi
-        sleep 5
-      done
-      if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
-        cat > "$MANIFEST_DIR/10-argocd-root-application.yaml" <<'ROOTAPP'
-        apiVersion: argoproj.io/v1alpha1
-        kind: Application
-        metadata:
-          name: root
+      # Always write root Application manifest (idempotent)
+      cat > "$MANIFEST_DIR/10-argocd-root-application.yaml" <<'ROOTAPP'
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: root
+        namespace: argocd
+        annotations:
+          argocd.argoproj.io/sync-wave: "-2"
+      spec:
+        project: default
+        source:
+          repoURL: ${git_repo_url}
+          path: ${git_root_app_path}
+          targetRevision: ${git_revision}
+          directory:
+            recurse: true
+        destination:
+          server: https://kubernetes.default.svc
           namespace: argocd
-          annotations:
-            argocd.argoproj.io/sync-wave: "-2"
-        spec:
-          project: default
-          source:
-            repoURL: ${git_repo_url}
-            path: ${git_root_app_path}
-            targetRevision: ${git_revision}
-            directory:
-              recurse: true
-          destination:
-            server: https://kubernetes.default.svc
-            namespace: argocd
-          syncPolicy:
-            automated:
-              prune: true
-              selfHeal: true
-            syncOptions:
-              - CreateNamespace=true
-        ROOTAPP
-        echo "[bootstrap] Root Argo Application manifest written" | systemd-cat -t bootstrap -p info
-      else
-        echo "[bootstrap] Application CRD not found after timeout" | systemd-cat -t bootstrap -p warning
-      fi
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+      ROOTAPP
+      echo "[bootstrap] Root Application manifest written (k3s will apply when CRD ready)" | systemd-cat -t bootstrap -p info
+
+      # Fallback Job: retry root Application until successful (safety net for timing issues)
+      cat > "$MANIFEST_DIR/11-argocd-root-fallback.yaml" <<'FALLBACK'
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: argocd-root-fallback
+        namespace: argocd
+      spec:
+        backoffLimit: 10
+        template:
+          spec:
+            serviceAccountName: default
+            restartPolicy: OnFailure
+            containers:
+              - name: ensure-root
+                image: alpine:3.19
+                command:
+                  - /bin/sh
+                  - -c
+                  - |
+                    set -e
+                    echo "[fallback] Waiting for Application CRD and root Application"
+                    for attempt in $(seq 1 30); do
+                      if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
+                        if kubectl get app root -n argocd >/dev/null 2>&1; then
+                          echo "[fallback] Root Application exists, success"
+                          exit 0
+                        else
+                          echo "[fallback] CRD exists but root app missing, reapplying..."
+                          cat <<'INNER_ROOT' | kubectl apply -f -
+                    apiVersion: argoproj.io/v1alpha1
+                    kind: Application
+                    metadata:
+                      name: root
+                      namespace: argocd
+                      annotations:
+                        argocd.argoproj.io/sync-wave: "-2"
+                    spec:
+                      project: default
+                      source:
+                        repoURL: ${git_repo_url}
+                        path: ${git_root_app_path}
+                        targetRevision: ${git_revision}
+                        directory:
+                          recurse: true
+                      destination:
+                        server: https://kubernetes.default.svc
+                        namespace: argocd
+                      syncPolicy:
+                        automated:
+                          prune: true
+                          selfHeal: true
+                        syncOptions:
+                          - CreateNamespace=true
+                    INNER_ROOT
+                          echo "[fallback] Root Application applied"
+                          exit 0
+                        fi
+                      fi
+                      echo "[fallback] Waiting for CRD (attempt $attempt/30)"
+                      sleep 10
+                    done
+                    echo "[fallback] Timeout waiting for CRD or applying root Application"
+                    exit 1
+      FALLBACK
+      echo "[bootstrap] Fallback Job created for root Application reliability" | systemd-cat -t bootstrap -p info
 
       echo "[bootstrap] Files seeded. Waiting for Argo CD server" | systemd-cat -t bootstrap -p info
       for i in {1..40}; do
