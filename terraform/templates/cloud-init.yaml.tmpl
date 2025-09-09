@@ -94,9 +94,6 @@ write_files:
         targetNamespace: argocd
         version: ${argocd_helm_version}
         valuesContent: |
-          server:
-            service:
-              type: ClusterIP
           configs:
             params:
               server.insecure: true
