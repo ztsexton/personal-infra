@@ -13,19 +13,18 @@ spec:
     targetRevision: 26.1.0
     helm:
       values: |
-        # Expose via hostPorts (single-node simplicity)
+        # Expose via NodePort service (reliable for k3s single-node)
         service:
-          enabled: false
+          enabled: true
+          type: NodePort
         ports:
           web:
             port: 8000
-            expose: true
-            exposedPort: 80
+            nodePort: 30080
             protocol: TCP
           websecure:
             port: 8443
-            expose: true
-            exposedPort: 443
+            nodePort: 30443
             protocol: TCP
         ingressClass:
           enabled: true
