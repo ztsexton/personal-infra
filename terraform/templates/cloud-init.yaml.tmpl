@@ -95,13 +95,8 @@ write_files:
         version: ${argocd_helm_version}
         valuesContent: |
           server:
-            ingress:
-              enabled: true
-              hosts:
-                - ${argocd_domain}
-              annotations:
-                cert-manager.io/cluster-issuer: cloudflare-dns
-              tls: true
+            service:
+              type: ClusterIP
           configs:
             params:
               server.insecure: true
