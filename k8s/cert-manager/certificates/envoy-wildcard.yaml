@@ -1,0 +1,13 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: envoy-wildcard-cert
+  namespace: envoy-system
+spec:
+  secretName: envoy-tls-cert
+  issuerRef:
+    name: cloudflare-dns
+    kind: ClusterIssuer
+  dnsNames:
+    - zachsexton.com
+    - "*.zachsexton.com"

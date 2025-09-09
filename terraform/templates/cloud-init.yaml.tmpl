@@ -6,22 +6,6 @@ packages:
   - ca-certificates
   - ufw
 write_files:
-  - path: /etc/systemd/system/traefik-port-forward.service
-    permissions: '0644'
-    owner: root:root
-    content: |
-      [Unit]
-      Description=Port forwarding for Traefik NodePort
-      After=network.target
-      
-      [Service]
-      Type=oneshot
-      ExecStart=/sbin/iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 30080
-      ExecStart=/sbin/iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 30443
-      RemainAfterExit=yes
-      
-      [Install]
-      WantedBy=multi-user.target
   - path: /root/bootstrap.sh
     permissions: '0755'
     owner: root:root
@@ -35,22 +19,12 @@ write_files:
       for p in 22 80 443; do ufw allow $p/tcp || true; done
       echo 'y' | ufw enable || true
 
-      # Port forwarding for Traefik NodePort (80→30080, 443→30443)
-      # This forwards standard HTTP/HTTPS ports to Traefik's NodePort service
-      # - Port 80 (HTTP) → NodePort 30080 (Traefik web entrypoint)  
-      # - Port 443 (HTTPS) → NodePort 30443 (Traefik websecure entrypoint)
-      # This allows external visitors to access sites via standard ports without :30080/:30443
-      echo "[bootstrap] Setting up port forwarding for Traefik" | systemd-cat -t bootstrap -p info
-      systemctl enable traefik-port-forward.service
-      systemctl start traefik-port-forward.service
-      echo "[bootstrap] Port forwarding configured and enabled" | systemd-cat -t bootstrap -p info
-
       # Install k3s (idempotent guard)
       if ! command -v k3s >/dev/null 2>&1; then
         export K3S_TOKEN="${k3s_token}"
-        DISABLE_ARG="${disable_arg}"
-        INSTALL_K3S_EXEC="server $DISABLE_ARG --write-kubeconfig-mode=600"
-        echo "[bootstrap] Installing k3s (DISABLE_TRAEFIK=${disable_traefik})" | systemd-cat -t bootstrap -p info
+        # Disable Traefik since we'll use Envoy via ArgoCD
+        INSTALL_K3S_EXEC="server --disable traefik --write-kubeconfig-mode=600"
+        echo "[bootstrap] Installing k3s with Traefik disabled for Envoy" | systemd-cat -t bootstrap -p info
         curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="$INSTALL_K3S_EXEC" sh -
       else
         echo "[bootstrap] k3s already installed; skipping" | systemd-cat -t bootstrap -p info
@@ -84,25 +58,6 @@ write_files:
       # Argo CD installation via kubectl (more reliable than Helm)
       cat > "$MANIFEST_DIR/01-argocd-install.yaml" <<'ARGOCD'
       apiVersion: v1
-      kind: ServiceAccount
-      metadata:
-        name: argocd-installer
-        namespace: kube-system
-      ---
-      apiVersion: rbac.authorization.k8s.io/v1
-      kind: ClusterRoleBinding
-      metadata:
-        name: argocd-installer
-      roleRef:
-        apiGroup: rbac.authorization.k8s.io
-        kind: ClusterRole
-        name: cluster-admin
-      subjects:
-        - kind: ServiceAccount
-          name: argocd-installer
-          namespace: kube-system
-      ---
-      apiVersion: v1
       kind: ConfigMap
       metadata:
         name: argocd-install
@@ -113,10 +68,6 @@ write_files:
           set -e
           echo "Installing Argo CD via kubectl..."
           kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-          
-          # Wait for Argo CD to be ready before patching
-          echo "Waiting for Argo CD secret to be created..."
-          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
           
           # Set admin password
           kubectl -n argocd patch secret argocd-secret \
@@ -136,7 +87,7 @@ write_files:
       spec:
         template:
           spec:
-            serviceAccountName: argocd-installer
+            serviceAccountName: default
             restartPolicy: OnFailure
             containers:
               - name: install
