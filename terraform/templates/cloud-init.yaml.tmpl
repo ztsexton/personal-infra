@@ -84,6 +84,25 @@ write_files:
       # Argo CD installation via kubectl (more reliable than Helm)
       cat > "$MANIFEST_DIR/01-argocd-install.yaml" <<'ARGOCD'
       apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: argocd-installer
+        namespace: kube-system
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: argocd-installer
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: cluster-admin
+      subjects:
+        - kind: ServiceAccount
+          name: argocd-installer
+          namespace: kube-system
+      ---
+      apiVersion: v1
       kind: ConfigMap
       metadata:
         name: argocd-install
@@ -94,6 +113,10 @@ write_files:
           set -e
           echo "Installing Argo CD via kubectl..."
           kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          
+          # Wait for Argo CD to be ready before patching
+          echo "Waiting for Argo CD secret to be created..."
+          kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=argocd-server -n argocd --timeout=300s
           
           # Set admin password
           kubectl -n argocd patch secret argocd-secret \
@@ -113,7 +136,7 @@ write_files:
       spec:
         template:
           spec:
-            serviceAccountName: default
+            serviceAccountName: argocd-installer
             restartPolicy: OnFailure
             containers:
               - name: install
