@@ -81,25 +81,53 @@ write_files:
           app.kubernetes.io/name: argocd
       NS
 
-      # Argo CD HelmChart
-      cat > "$MANIFEST_DIR/argocd.helmchart.yaml" <<'HCH'
-      apiVersion: helm.cattle.io/v1
-      kind: HelmChart
+      # Argo CD installation via kubectl (more reliable than Helm)
+      cat > "$MANIFEST_DIR/01-argocd-install.yaml" <<'ARGOCD'
+      apiVersion: v1
+      kind: ConfigMap
       metadata:
-        name: argo-cd
+        name: argocd-install
+        namespace: kube-system
+      data:
+        install.sh: |
+          #!/bin/bash
+          set -e
+          echo "Installing Argo CD via kubectl..."
+          kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          
+          # Set admin password
+          kubectl -n argocd patch secret argocd-secret \
+            -p '{"stringData": {"admin.password": "${argocd_admin_password_bcrypt}", "admin.passwordMtime": "'$(date +%FT%T%Z)'"}}'
+          
+          # Configure insecure mode
+          kubectl patch configmap argocd-cmd-params-cm -n argocd \
+            -p '{"data":{"server.insecure":"true"}}'
+          
+          echo "Argo CD installation complete"
+      ---
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: argocd-install
         namespace: kube-system
       spec:
-        repo: https://argoproj.github.io/argo-helm
-        chart: argo-cd
-        targetNamespace: argocd
-        version: ${argocd_helm_version}
-        valuesContent: |
-          configs:
-            params:
-              server.insecure: true
-            secret:
-              argocdServerAdminPassword: ${argocd_admin_password_bcrypt}
-      HCH
+        template:
+          spec:
+            serviceAccountName: default
+            restartPolicy: OnFailure
+            containers:
+              - name: install
+                image: rancher/kubectl:v1.29.3
+                command: ["/bin/sh", "/scripts/install.sh"]
+                volumeMounts:
+                  - name: install-script
+                    mountPath: /scripts
+            volumes:
+              - name: install-script
+                configMap:
+                  name: argocd-install
+                  defaultMode: 0755
+      ARGOCD
 
       # Always write root Application manifest (idempotent)
       cat > "$MANIFEST_DIR/10-argocd-root-application.yaml" <<'ROOTAPP'
