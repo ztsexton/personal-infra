@@ -5,7 +5,6 @@ packages:
   - curl
   - ca-certificates
   - ufw
-  - iptables-persistent
 write_files:
   - path: /root/bootstrap.sh
     permissions: '0755'
@@ -30,7 +29,7 @@ write_files:
       iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 30443
       
       # Install iptables-persistent and save rules
-      apt-get install -y iptables-persistent
+      DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent
       iptables-save > /etc/iptables/rules.v4
       echo "[bootstrap] Port forwarding configured and saved" | systemd-cat -t bootstrap -p info
 
