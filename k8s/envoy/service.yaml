@@ -6,7 +6,8 @@ metadata:
   labels:
     app: envoy-proxy
 spec:
-  type: ClusterIP
+  type: LoadBalancer
+  loadBalancerIP: 178.156.205.252  # Your VPS external IP
   ports:
   - port: 80
     targetPort: 80

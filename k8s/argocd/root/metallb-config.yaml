@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metallb-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"  # Apply config after MetalLB is installed
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ztsexton/personal-infra.git
+    path: k8s/metallb/config
+    targetRevision: HEAD
+    directory:
+      recurse: true
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: metallb-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+  # Ensure MetalLB is installed before applying configuration
+  ignoreDifferences:
+  - group: metallb.io
+    kind: IPAddressPool
+    jsonPointers:
+    - /status
