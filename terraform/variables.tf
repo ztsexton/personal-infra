@@ -10,7 +10,7 @@ variable "ssh_public_key" {
   description = "Automation ssh public key"
 }
 
-# --- GitOps / k3s bootstrap variables ---
+# --- k3s bootstrap variables ---
 
 variable "k3s_token" {
   description = "Fixed shared secret token for k3s cluster (used by server + future agents). Generate a strong random string."
@@ -18,21 +18,12 @@ variable "k3s_token" {
   sensitive   = true
 }
 
-variable "disable_traefik" {
-  description = "Whether to disable the bundled Traefik in k3s (set true if you'll deploy your own ingress controller via Argo CD)."
-  type        = bool
-  default     = true
-}
+# --- ArgoCD Terraform deployment variables ---
 
 variable "argocd_helm_version" {
   description = "Argo CD Helm chart version (argo-helm repo)."
   type        = string
   default     = "7.6.9"
-}
-
-variable "argocd_domain" {
-  description = "Public domain for Argo CD ingress host (e.g. argocd.zachsexton.com)."
-  type        = string
 }
 
 variable "argocd_admin_password_bcrypt" {

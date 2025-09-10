@@ -31,14 +31,6 @@ resource "hcloud_server" "vps" {
   # NOTE: Any sensitive values in user_data will be stored in Terraform state. Consider secret management later (e.g. External Secrets + SOPS).
 
   user_data = templatefile("${path.module}/templates/cloud-init.yaml.tmpl", {
-    k3s_token                     = var.k3s_token
-    disable_traefik               = var.disable_traefik
-    disable_arg                   = var.disable_traefik ? "--disable traefik" : ""
-    argocd_helm_version           = var.argocd_helm_version
-    argocd_domain                 = var.argocd_domain
-    argocd_admin_password_bcrypt  = var.argocd_admin_password_bcrypt
-    git_repo_url                  = var.git_repo_url
-    git_root_app_path             = var.git_root_app_path
-    git_revision                  = var.git_revision
+    k3s_token = var.k3s_token
   })
 }

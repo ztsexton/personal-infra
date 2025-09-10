@@ -12,6 +12,7 @@ set -euo pipefail
 STATE_FILE="terraform/terraform.tfstate"
 SERVER_IP=""
 VPS_IP_OVERRIDE="178.156.205.252"
+AUTO_HOSTKEY_CLEAN=1
 
 if [ -f "$STATE_FILE" ]; then
   SERVER_IP=$(grep -oE '"vps_ip"[^\n]*' "$STATE_FILE" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1 || true)
