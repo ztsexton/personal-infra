@@ -6,7 +6,12 @@ metadata:
   labels:
     app: envoy-proxy
 spec:
-  replicas: 1
+  replicas: 2  # Can have multiple replicas
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Ensure zero downtime
   selector:
     matchLabels:
       app: envoy-proxy
@@ -21,7 +26,6 @@ spec:
         ports:
         - containerPort: 80
           name: http
-          hostPort: 80
         - containerPort: 9901
           name: admin
         volumeMounts:
@@ -57,9 +61,15 @@ spec:
             port: 9901
           initialDelaySeconds: 5
           periodSeconds: 5
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - "sleep 15"  # Give time for connections to drain
       volumes:
       - name: envoy-config
         configMap:
           name: envoy-config
-      hostNetwork: true
-      dnsPolicy: ClusterFirstWithHostNet
+      terminationGracePeriodSeconds: 30

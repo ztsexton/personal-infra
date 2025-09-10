@@ -1,0 +1,17 @@
+apiVersion: metallb.io/v1beta1
+kind: IPAddressPool
+metadata:
+  name: external-ip-pool
+  namespace: metallb-system
+spec:
+  addresses:
+  - 178.156.205.252/32  # Your VPS external IP
+---
+apiVersion: metallb.io/v1beta1
+kind: L2Advertisement
+metadata:
+  name: external-ip-advertisement
+  namespace: metallb-system
+spec:
+  ipAddressPools:
+  - external-ip-pool
