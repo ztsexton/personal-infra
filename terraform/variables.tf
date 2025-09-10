@@ -10,6 +10,12 @@ variable "ssh_public_key" {
   description = "Automation ssh public key"
 }
 
+variable "ssh_private_key" {
+  sensitive   = true
+  type        = string
+  description = "Automation ssh private key"
+}
+
 # --- k3s bootstrap variables ---
 
 variable "k3s_token" {
