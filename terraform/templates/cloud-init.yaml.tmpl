@@ -58,6 +58,34 @@ write_files:
       # Argo CD installation via kubectl (more reliable than Helm)
       cat > "$MANIFEST_DIR/01-argocd-install.yaml" <<'ARGOCD'
       apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: argocd-installer
+        namespace: kube-system
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: argocd-installer
+      rules:
+      - apiGroups: ["*"]
+        resources: ["*"]
+        verbs: ["*"]
+      ---
+      apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: argocd-installer
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: argocd-installer
+      subjects:
+      - kind: ServiceAccount
+        name: argocd-installer
+        namespace: kube-system
+      ---
+      apiVersion: v1
       kind: ConfigMap
       metadata:
         name: argocd-install
@@ -67,7 +95,24 @@ write_files:
           #!/bin/bash
           set -e
           echo "Installing Argo CD via kubectl..."
+          
+          # Wait for API server to be ready
+          until kubectl get nodes; do
+            echo "Waiting for Kubernetes API server..."
+            sleep 5
+          done
+          
           kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+          
+          # Wait for ArgoCD secret to be created
+          echo "Waiting for ArgoCD secret to be created..."
+          for i in {1..60}; do
+            if kubectl get secret argocd-secret -n argocd >/dev/null 2>&1; then
+              break
+            fi
+            echo "Waiting for argocd-secret... ($i/60)"
+            sleep 10
+          done
           
           # Set admin password
           kubectl -n argocd patch secret argocd-secret \
@@ -85,9 +130,11 @@ write_files:
         name: argocd-install
         namespace: kube-system
       spec:
+        backoffLimit: 3
+        activeDeadlineSeconds: 1800  # 30 minutes timeout
         template:
           spec:
-            serviceAccountName: default
+            serviceAccountName: argocd-installer
             restartPolicy: OnFailure
             containers:
               - name: install
@@ -141,6 +188,7 @@ write_files:
         namespace: argocd
       spec:
         backoffLimit: 10
+        activeDeadlineSeconds: 3600  # 1 hour timeout
         template:
           spec:
             serviceAccountName: default
@@ -153,15 +201,29 @@ write_files:
                   - -c
                   - |
                     set -e
-                    echo "[fallback] Waiting for Application CRD and root Application"
-                    for attempt in $(seq 1 30); do
+                    
+                    # Install kubectl
+                    apk add --no-cache curl
+                    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+                    chmod +x kubectl
+                    mv kubectl /usr/local/bin/
+                    
+                    echo "[fallback] Waiting for Application CRD and ArgoCD server"
+                    for attempt in $(seq 1 60); do
                       if kubectl get crd applications.argoproj.io >/dev/null 2>&1; then
-                        if kubectl get app root -n argocd >/dev/null 2>&1; then
-                          echo "[fallback] Root Application exists, success"
-                          exit 0
-                        else
-                          echo "[fallback] CRD exists but root app missing, reapplying..."
-                          cat <<'INNER_ROOT' | kubectl apply -f -
+                        echo "[fallback] Application CRD found"
+                        
+                        # Wait for ArgoCD server to be ready
+                        if kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-server --field-selector=status.phase=Running >/dev/null 2>&1; then
+                          echo "[fallback] ArgoCD server is running"
+                          
+                          # Check if root app exists
+                          if kubectl get app root -n argocd >/dev/null 2>&1; then
+                            echo "[fallback] Root Application exists, success"
+                            exit 0
+                          else
+                            echo "[fallback] Creating root Application..."
+                            cat <<'INNER_ROOT' | kubectl apply -f -
                     apiVersion: argoproj.io/v1alpha1
                     kind: Application
                     metadata:
@@ -187,12 +249,16 @@ write_files:
                         syncOptions:
                           - CreateNamespace=true
                     INNER_ROOT
-                          echo "[fallback] Root Application applied"
-                          exit 0
+                            echo "[fallback] Root Application applied successfully"
+                            exit 0
+                          fi
+                        else
+                          echo "[fallback] ArgoCD server not ready yet (attempt $attempt/60)"
                         fi
+                      else
+                        echo "[fallback] Waiting for Application CRD (attempt $attempt/60)"
                       fi
-                      echo "[fallback] Waiting for CRD (attempt $attempt/30)"
-                      sleep 10
+                      sleep 30
                     done
                     echo "[fallback] Timeout waiting for CRD or applying root Application"
                     exit 1
@@ -200,12 +266,13 @@ write_files:
       echo "[bootstrap] Fallback Job created for root Application reliability" | systemd-cat -t bootstrap -p info
 
       echo "[bootstrap] Files seeded. Waiting for Argo CD server" | systemd-cat -t bootstrap -p info
-      for i in {1..40}; do
-        if kubectl get pods -n argocd 2>/dev/null | grep -q 'argocd-server'; then
-          echo "[bootstrap] Argo CD detected" | systemd-cat -t bootstrap -p info
+      for i in {1..60}; do
+        if kubectl get pods -n argocd -l app.kubernetes.io/name=argocd-server --field-selector=status.phase=Running 2>/dev/null | grep -q 'argocd-server'; then
+          echo "[bootstrap] Argo CD server is running" | systemd-cat -t bootstrap -p info
           break
         fi
-        sleep 15
+        echo "[bootstrap] Waiting for Argo CD server... ($i/60)" | systemd-cat -t bootstrap -p info
+        sleep 30
       done
       echo "[bootstrap] Complete" | systemd-cat -t bootstrap -p info
 runcmd:
