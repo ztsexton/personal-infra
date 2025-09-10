@@ -14,7 +14,7 @@ resource "null_resource" "wait_for_k3s" {
     connection {
       type        = "ssh"
       user        = "root"
-      private_key = file("../mykey.ssh")
+      private_key = var.ssh_private_key
       host        = hcloud_server.vps.ipv4_address
     }
   }
@@ -25,11 +25,14 @@ data "external" "kubeconfig" {
   depends_on = [null_resource.wait_for_k3s]
   
   program = ["bash", "-c", <<-EOT
-    ssh -o StrictHostKeyChecking=no -i ../mykey.ssh root@${hcloud_server.vps.ipv4_address} \
+    echo '${var.ssh_private_key}' > /tmp/ssh_key && \
+    chmod 600 /tmp/ssh_key && \
+    ssh -o StrictHostKeyChecking=no -i /tmp/ssh_key root@${hcloud_server.vps.ipv4_address} \
       'cat /etc/rancher/k3s/k3s.yaml' | \
       sed 's/127.0.0.1/${hcloud_server.vps.ipv4_address}/' | \
       base64 -w 0 | \
-      jq -n --arg config "$(cat)" '{"kubeconfig": $config}'
+      jq -n --arg config "$(cat)" '{"kubeconfig": $config}' && \
+    rm -f /tmp/ssh_key
   EOT
   ]
 }
