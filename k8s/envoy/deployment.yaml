@@ -22,20 +22,11 @@ spec:
         - containerPort: 80
           name: http
           hostPort: 80
-        - containerPort: 443
-          name: https
-          hostPort: 443
         - containerPort: 9901
           name: admin
         volumeMounts:
         - name: envoy-config
           mountPath: /etc/envoy
-        - name: tls-certs
-          mountPath: /etc/ssl/certs
-          readOnly: true
-        - name: tls-private
-          mountPath: /etc/ssl/private
-          readOnly: true
         command:
         - /usr/local/bin/envoy
         args:
@@ -70,17 +61,5 @@ spec:
       - name: envoy-config
         configMap:
           name: envoy-config
-      - name: tls-certs
-        secret:
-          secretName: envoy-tls-cert
-          items:
-          - key: tls.crt
-            path: tls.crt
-      - name: tls-private
-        secret:
-          secretName: envoy-tls-cert
-          items:
-          - key: tls.key
-            path: tls.key
       hostNetwork: true
       dnsPolicy: ClusterFirstWithHostNet
