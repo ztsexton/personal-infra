@@ -1,0 +1,19 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: petfoodfinder-ingress
+  namespace: web
+  annotations:
+    kubernetes.io/ingress.class: "envoy"
+spec:
+  rules:
+  - host: petfoodfinder.zachsexton.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: petfoodfinder
+            port:
+              number: 80

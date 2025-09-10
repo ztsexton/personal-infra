@@ -4,12 +4,12 @@ metadata:
   name: metallb-config
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "2"  # Apply config after MetalLB is installed
+    argocd.argoproj.io/sync-wave: "-1"  # Apply config after MetalLB but before Traefik
 spec:
   project: default
   source:
     repoURL: https://github.com/ztsexton/personal-infra.git
-    path: k8s/metallb/config
+    path: k8s/metallb
     targetRevision: HEAD
     directory:
       recurse: true
@@ -22,9 +22,3 @@ spec:
       selfHeal: true
     syncOptions:
     - CreateNamespace=true
-  # Ensure MetalLB is installed before applying configuration
-  ignoreDifferences:
-  - group: metallb.io
-    kind: IPAddressPool
-    jsonPointers:
-    - /status

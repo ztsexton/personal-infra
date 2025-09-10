@@ -1,21 +1,50 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: envoy-proxy
+  name: traefik
   namespace: argocd
   annotations:
     argocd.argoproj.io/sync-wave: "-1"
 spec:
   project: default
   source:
-    repoURL: https://github.com/ztsexton/personal-infra.git
-    path: k8s/envoy
-    targetRevision: master
-    directory:
-      recurse: true
+    repoURL: https://traefik.github.io/charts
+    chart: traefik
+    targetRevision: 28.3.0
+    helm:
+      values: |
+        deployment:
+          replicas: 2
+        service:
+          type: LoadBalancer
+          spec:
+            loadBalancerIP: 178.156.205.252  # Your external IP
+        ports:
+          web:
+            port: 80
+            expose: true
+          websecure:
+            port: 443
+            expose: true
+        ingressClass:
+          enabled: true
+          isDefaultClass: true
+        providers:
+          kubernetesingress:
+            enabled: true
+            allowExternalNameServices: true
+          kubernetescrd:
+            enabled: true
+            allowExternalNameServices: true
+        api:
+          dashboard: true
+          insecure: true
+        metrics:
+          prometheus:
+            enabled: true
   destination:
     server: https://kubernetes.default.svc
-    namespace: envoy-system
+    namespace: traefik-system
   syncPolicy:
     automated:
       prune: true
