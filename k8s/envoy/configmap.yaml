@@ -57,7 +57,7 @@ data:
                     route:
                       cluster: petfoodfinder
                 - name: vigilo_zachsexton_com
-                  domains: ["vigilo.zachsexton.com"]
+                  domains: ["vigilo.zachsexton.com", "vigilo.dev"]
                   routes:
                   - match:
                       prefix: "/"
