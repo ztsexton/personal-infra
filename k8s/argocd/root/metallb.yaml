@@ -3,27 +3,21 @@ kind: Application
 metadata:
   name: metallb
   namespace: argocd
-  annotations:
-    argocd.argoproj.io/sync-wave: "-2"  # Install before Traefik
 spec:
   project: default
   source:
-    repoURL: https://metallb.github.io/metallb
-    chart: metallb
-    targetRevision: 0.14.8
-    helm:
-      values: |
-        speaker:
-          frr:
-            enabled: false
-        controller:
-          enabled: true
+    repoURL: https://github.com/ztsexton/personal-infra.git
+    path: k8s/metallb
+    targetRevision: HEAD
+    directory:
+      recurse: true
+      exclude: "config/*"  # Exclude config directory - handled separately
   destination:
     server: https://kubernetes.default.svc
-    namespace: metallb-system
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
-    - CreateNamespace=true
+      - CreateNamespace=true
