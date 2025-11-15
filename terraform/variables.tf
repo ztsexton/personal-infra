@@ -55,3 +55,19 @@ variable "git_revision" {
   type        = string
   default     = "HEAD"
 }
+
+# --- 1Password Connect Configuration ---
+
+variable "onepassword_connect_token" {
+  description = "1Password Connect token for operator integration. Leave empty to skip bootstrap."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
+variable "onepassword_credentials_json" {
+  description = "1Password Connect credentials JSON content. Leave empty to skip bootstrap."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
