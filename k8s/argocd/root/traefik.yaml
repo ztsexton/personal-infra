@@ -17,8 +17,7 @@ spec:
           replicas: 2
         service:
           type: LoadBalancer
-          spec:
-            loadBalancerIP: 178.156.205.252  # Your external IP
+          loadBalancerIP: 178.156.205.252  # Your external IP
         ports:
           web:
             port: 80
