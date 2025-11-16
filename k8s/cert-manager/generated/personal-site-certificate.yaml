@@ -1,0 +1,15 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: personal-site-tls
+  namespace: web
+  labels:
+    managed-by: argocd
+spec:
+  secretName: personal-site-tls
+  issuerRef:
+    name: cloudflare-dns
+    kind: ClusterIssuer
+  dnsNames:
+  - zachsexton.com
+  - www.zachsexton.com
