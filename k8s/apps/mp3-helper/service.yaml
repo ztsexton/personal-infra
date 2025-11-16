@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mp3-helper
+  namespace: web
+spec:
+  selector:
+    app: mp3-helper
+  ports:
+    - port: 80
+      targetPort: 8080

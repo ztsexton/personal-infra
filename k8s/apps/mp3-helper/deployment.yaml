@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mp3-helper
+  namespace: web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mp3-helper
+  template:
+    metadata:
+      labels:
+        app: mp3-helper
+    spec:
+      containers:
+        - name: mp3-helper
+          image: ghcr.io/ztsexton/mp3-helper:latest
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
