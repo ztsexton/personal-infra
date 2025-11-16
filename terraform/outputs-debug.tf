@@ -8,11 +8,11 @@ output "onepassword_vars_configured" {
 output "onepassword_token_length" {
   value = length(var.onepassword_connect_token)
   description = "Length of onepassword_connect_token (0 means not set)"
-  sensitive = false
+  sensitive = true
 }
 
 output "onepassword_credentials_length" {
   value = length(var.onepassword_credentials_json)
   description = "Length of onepassword_credentials_json (0 means not set)"
-  sensitive = false
+  sensitive = true
 }
