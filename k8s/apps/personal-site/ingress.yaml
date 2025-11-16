@@ -6,6 +6,7 @@ metadata:
   annotations:
     kubernetes.io/ingress.class: "traefik"
     traefik.ingress.kubernetes.io/router.entrypoints: web
+    cert-manager.io/cluster-issuer: cloudflare-dns
 spec:
   rules:
   - host: zachsexton.com
@@ -42,3 +43,8 @@ spec:
             name: personal-site
             port:
               number: 80
+  tls:
+  - hosts:
+    - zachsexton.com
+    - www.zachsexton.com
+    secretName: personal-site-tls
