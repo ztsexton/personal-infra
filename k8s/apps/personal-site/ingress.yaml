@@ -11,6 +11,13 @@ spec:
   - host: zachsexton.com
     http:
       paths:
+      - path: /mp3
+        pathType: Prefix
+        backend:
+          service:
+            name: mp3-helper
+            port:
+              number: 80
       - path: /
         pathType: Prefix
         backend:
@@ -21,6 +28,13 @@ spec:
   - host: www.zachsexton.com
     http:
       paths:
+      - path: /mp3
+        pathType: Prefix
+        backend:
+          service:
+            name: mp3-helper
+            port:
+              number: 80
       - path: /
         pathType: Prefix
         backend:
