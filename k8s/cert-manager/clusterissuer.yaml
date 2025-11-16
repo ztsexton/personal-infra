@@ -11,7 +11,7 @@ metadata:
   name: cloudflare-dns-staging
 spec:
   acme:
-    email: you@example.com # TODO: replace with real email
+    email: admin@zachsexton.com
     server: https://acme-staging-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
       name: cloudflare-dns-staging-account-key
@@ -28,7 +28,7 @@ metadata:
   name: cloudflare-dns
 spec:
   acme:
-    email: you@example.com # TODO: replace with real email
+    email: admin@zachsexton.com
     server: https://acme-v02.api.letsencrypt.org/directory
     privateKeySecretRef:
       name: cloudflare-dns-issuer-account-key
