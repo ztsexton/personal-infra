@@ -1,0 +1,23 @@
+# OnePasswordItem to sync a test secret from 1Password to Kubernetes
+# This will create a Secret named 'k3s-demo-secret' in the 'onepassword' namespace.
+#
+# Prerequisites:
+# 1. In 1Password:
+#    - Vault: Kubernetes
+#    - Item name: k3s-demo-secret
+#    - Add fields (e.g. username/password/api-key) you want to appear as keys in the K8s Secret.
+# 2. Ensure the Operator and Connect are installed and healthy (which they now are).
+# 3. Commit this file into your ArgoCD-managed repo and let Argo sync.
+
+apiVersion: onepassword.com/v1
+kind: OnePasswordItem
+metadata:
+  name: k3s-demo-secret
+  namespace: onepassword
+  # Optional: if this lives in the same ArgoCD app as the operator CRDs,
+  # you can control apply order with a sync-wave annotation:
+  # annotations:
+  #   argocd.argoproj.io/sync-wave: "5"
+spec:
+  # Format: "vaults/<VAULT_NAME>/items/<ITEM_NAME_OR_ID>"
+  itemPath: "vaults/Kubernetes/items/k3s-demo-secret"
