@@ -1,0 +1,20 @@
+# OnePasswordItem to sync Cloudflare API token from 1Password to Kubernetes
+# This creates a secret named 'cloudflare-api-token' in the cert-manager namespace
+# 
+# Prerequisites:
+# 1. Create an item in 1Password with:
+#    - Vault: Choose your vault (e.g., "Infrastructure" or "Kubernetes")
+#    - Item name: "Cloudflare API Token" (or your preferred name)
+#    - Field name: "api-token" (or "credential" or "password" - note what you use)
+# 2. Update the itemPath below to match your vault and item name
+# 3. Ensure the field name in 1Password matches what's expected (api-token)
+
+apiVersion: onepassword.com/v1
+kind: OnePasswordItem
+metadata:
+  name: cloudflare-api-token
+  namespace: cert-manager
+spec:
+  # Update this path to match your 1Password vault and item
+  # Format: "vaults/<VAULT_NAME>/items/<ITEM_NAME>"
+  itemPath: "vaults/Infrastructure/items/Cloudflare API Token"
