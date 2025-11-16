@@ -17,4 +17,4 @@ metadata:
 spec:
   # Update this path to match your 1Password vault and item
   # Format: "vaults/<VAULT_NAME>/items/<ITEM_NAME>"
-  itemPath: "vaults/Infrastructure/items/Cloudflare API Token"
+  itemPath: "vaults/Kubernetes/items/cloudflare_dns_zone_token"
