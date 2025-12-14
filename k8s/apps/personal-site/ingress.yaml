@@ -3,11 +3,8 @@ kind: Ingress
 metadata:
   name: personal-site-ingress
   namespace: web
-  annotations:
-    kubernetes.io/ingress.class: "traefik"
-    traefik.ingress.kubernetes.io/router.entrypoints: web
-    cert-manager.io/cluster-issuer: cloudflare-dns
 spec:
+  ingressClassName: traefik
   rules:
   - host: zachsexton.com
     http:
@@ -47,4 +44,4 @@ spec:
   - hosts:
     - zachsexton.com
     - www.zachsexton.com
-    secretName: personal-site-tls
+    secretName: zachsexton-wildcard-tls

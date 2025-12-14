@@ -3,12 +3,8 @@ kind: Ingress
 metadata:
   name: argocd-ingress
   namespace: argocd
-  annotations:
-    kubernetes.io/ingress.class: "traefik"
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    kubernetes.io/tls-acme: "true"
-    cert-manager.io/cluster-issuer: cloudflare-dns
 spec:
+  ingressClassName: traefik
   tls:
   - hosts:
     - argocd.zachsexton.com
