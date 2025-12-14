@@ -1,0 +1,35 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ballroom-competition-web-ingress
+  namespace: web
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: web-ballroom-strip@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - secretName: zachsexton-wildcard-tls
+      hosts:
+        - zachsexton.com
+        - www.zachsexton.com
+  rules:
+    - host: zachsexton.com
+      http:
+        paths:
+          - path: /ballroomcomp
+            pathType: Prefix
+            backend:
+              service:
+                name: ballroom-competition-web
+                port:
+                  number: 80
+    - host: www.zachsexton.com
+      http:
+        paths:
+          - path: /ballroomcomp
+            pathType: Prefix
+            backend:
+              service:
+                name: ballroom-competition-web
+                port:
+                  number: 80
