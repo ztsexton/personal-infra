@@ -9,6 +9,13 @@ spec:
   - host: zachsexton.com
     http:
       paths:
+      - path: /ballroomcomp
+        pathType: Prefix
+        backend:
+          service:
+            name: ballroom-competition-web
+            port:
+              number: 80
       - path: /mp3
         pathType: Prefix
         backend:
@@ -26,6 +33,13 @@ spec:
   - host: www.zachsexton.com
     http:
       paths:
+      - path: /ballroomcomp
+        pathType: Prefix
+        backend:
+          service:
+            name: ballroom-competition-web
+            port:
+              number: 80
       - path: /mp3
         pathType: Prefix
         backend:
