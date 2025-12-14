@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: zot-ingress
+  namespace: web
+  annotations:
+    # Increase client body size for pushing large container images
+    traefik.ingress.kubernetes.io/router.middlewares: web-zot-size-limit@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - secretName: zachsexton-wildcard-tls
+      hosts:
+        - zot.zachsexton.com
+  rules:
+    - host: zot.zachsexton.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: zot
+                port:
+                  number: 80
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: Middleware
+metadata:
+  name: zot-size-limit
+  namespace: web
+spec:
+  buffering:
+    maxRequestBodyBytes: 2147483648  # 2GB for large image pushes
