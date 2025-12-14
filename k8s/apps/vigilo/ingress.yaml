@@ -3,10 +3,15 @@ kind: Ingress
 metadata:
   name: vigilo-ingress
   namespace: web
-  annotations:
-    kubernetes.io/ingress.class: "traefik"
-    traefik.ingress.kubernetes.io/router.entrypoints: web
 spec:
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - vigilo.zachsexton.com
+    secretName: zachsexton-wildcard-tls
+  - hosts:
+    - vigilo.dev
+    secretName: vigilo-dev-tls
   rules:
   - host: vigilo.zachsexton.com
     http:
