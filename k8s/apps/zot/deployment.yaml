@@ -21,7 +21,11 @@ spec:
               name: http
           volumeMounts:
             - name: zot-config
-              mountPath: /etc/zot
+              mountPath: /etc/zot/config.json
+              subPath: config.json
+            - name: zot-auth
+              mountPath: /etc/zot/htpasswd
+              subPath: htpasswd
             - name: zot-data
               mountPath: /var/lib/zot
           resources:
@@ -47,6 +51,9 @@ spec:
         - name: zot-config
           configMap:
             name: zot-config
+        - name: zot-auth
+          secret:
+            secretName: zot-auth
         - name: zot-data
           emptyDir: {}
 ---
@@ -64,7 +71,12 @@ data:
       },
       "http": {
         "address": "0.0.0.0",
-        "port": "5000"
+        "port": "5000",
+        "auth": {
+          "htpasswd": {
+            "path": "/etc/zot/htpasswd"
+          }
+        }
       },
       "log": {
         "level": "info"
