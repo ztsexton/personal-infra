@@ -1,0 +1,31 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: ballroom-strip
+  namespace: web
+spec:
+  stripPrefix:
+    prefixes:
+      - "/ballroomcomp"
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: ballroom-headers
+  namespace: web
+spec:
+  headers:
+    customRequestHeaders:
+      X-Script-Name: "/ballroomcomp"
+      X-Forwarded-Prefix: "/ballroomcomp"
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: ballroom-chain
+  namespace: web
+spec:
+  chain:
+    middlewares:
+      - name: ballroom-headers
+      - name: ballroom-strip

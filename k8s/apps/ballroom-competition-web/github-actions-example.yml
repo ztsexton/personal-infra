@@ -1,0 +1,58 @@
+# GitHub Actions workflow for ballroom-competition-web
+# Copy to: .github/workflows/deploy.yml in your ballroom-competition-web repo
+
+name: Build, Push, and Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - master
+
+env:
+  REGISTRY: zot.zachsexton.com
+  IMAGE_NAME: ballroom-competition-web
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to Zot registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.ZOT_USERNAME }}
+          password: ${{ secrets.ZOT_PASSWORD }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Trigger Kubernetes rollout
+        env:
+          K8S_HOST: ${{ secrets.K8S_HOST }}
+          SSH_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H $K8S_HOST >> ~/.ssh/known_hosts
+          ssh -i ~/.ssh/id_rsa root@$K8S_HOST \
+            "kubectl rollout restart deployment ballroom-competition-web -n web"
+          ssh -i ~/.ssh/id_rsa root@$K8S_HOST \
+            "kubectl rollout status deployment ballroom-competition-web -n web --timeout=120s"
+
+---
+# Required GitHub Secrets in your ballroom-competition-web repo:
+# - ZOT_USERNAME: admin
+# - ZOT_PASSWORD: scoobydoo2
+# - K8S_HOST: 178.156.205.252
+# - SSH_PRIVATE_KEY: (contents of your mykey.ssh file)

@@ -8,37 +8,17 @@ This app pulls from the private Zot registry and is served at the `/ballroomcomp
 
 ## Setup
 
-### 1. Set up Docker Registry Credentials
+### 1. Docker Registry Credentials (Already Done!)
 
-Run the helper script to generate the credentials:
+The `zot-registry-credentials` secret has been created using your existing Zot admin credentials. No additional setup needed!
 
-```bash
-./scripts/setup-zot-registry-credentials.sh
-```
-
-This will generate a `.dockerconfigjson` that you need to add to 1Password.
-
-### 2. Create 1Password Item
-
-1. Go to 1Password → Kubernetes vault
-2. Create new item: **zot-docker-config**
-3. Add field named `.dockerconfigjson` (text type)
-4. Paste the JSON from the script output
-5. Save
-
-### 3. Apply OnePasswordItem
+To recreate if needed:
 
 ```bash
-kubectl apply -f k8s/apps/ballroom-competition-web/onepassword-secret.yaml
+./scripts/personal-web-server.sh "ZOT_PASSWORD=\$(kubectl get secret zot-auth -n web -o jsonpath='{.data.password}' | base64 -d | cut -d: -f2) && kubectl create secret docker-registry zot-registry-credentials --docker-server=zot.zachsexton.com --docker-username=admin --docker-password=\"\$ZOT_PASSWORD\" -n web --dry-run=client -o yaml | kubectl apply -f -"
 ```
 
-Wait 1-2 minutes for sync, then verify:
-
-```bash
-kubectl get secret zot-registry-credentials -n web
-```
-
-### 4. Deploy the App
+### 2. Deploy the App
 
 The app will deploy automatically via Argo CD when you push to Git:
 
