@@ -24,8 +24,8 @@ spec:
               mountPath: /etc/zot/config.json
               subPath: config.json
             - name: zot-auth
-              mountPath: /etc/zot/htpasswd
-              subPath: htpasswd
+              mountPath: /etc/zot/password
+              subPath: password
             - name: zot-data
               mountPath: /var/lib/zot
           resources:
@@ -36,14 +36,12 @@ spec:
               memory: "512Mi"
               cpu: "500m"
           readinessProbe:
-            httpGet:
-              path: /v2/
+            tcpSocket:
               port: 5000
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
-            httpGet:
-              path: /v2/
+            tcpSocket:
               port: 5000
             initialDelaySeconds: 15
             periodSeconds: 20
@@ -74,7 +72,23 @@ data:
         "port": "5000",
         "auth": {
           "htpasswd": {
-            "path": "/etc/zot/htpasswd"
+            "path": "/etc/zot/password"
+          },
+          "failDelay": 5
+        },
+        "accessControl": {
+          "repositories": {
+            "**": {
+              "policies": [{
+                "users": ["admin"],
+                "actions": ["read", "create", "update", "delete"]
+              }],
+              "defaultPolicy": []
+            }
+          },
+          "adminPolicy": {
+            "users": ["admin"],
+            "actions": ["read", "create", "update", "delete"]
           }
         }
       },
