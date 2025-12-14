@@ -8,11 +8,10 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/ztsexton/personal-infra.git
-    path: k8s/networking/metallb
-    targetRevision: HEAD
-    directory:
-      recurse: true
+    repoURL: https://metallb.github.io/metallb
+    chart: metallb
+    targetRevision: 0.14.9
+    helm: {}
   destination:
     server: https://kubernetes.default.svc
     namespace: metallb-system
@@ -22,5 +21,27 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - PrunePropagationPolicy=foreground
-      - PruneLast=true
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metallb-config
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ztsexton/personal-infra.git
+    path: k8s/networking/metallb
+    targetRevision: HEAD
+    directory:
+      recurse: true
+      exclude: "application.yaml"  # Don't apply the nested Application
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: metallb-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
