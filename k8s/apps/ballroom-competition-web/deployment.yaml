@@ -17,6 +17,9 @@ spec:
         - name: web
           image: zot.zachsexton.com/ballroom-competition-web:latest
           imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: ballroom-competition-web-firebase
           ports:
             - containerPort: 5000
               name: http

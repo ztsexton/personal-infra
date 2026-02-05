@@ -1,6 +1,6 @@
 # Ballroom Competition Web App
 
-Accessible at: **https://zachsexton.com/ballroomcomp**
+Accessible at: **[https://zachsexton.com/ballroomcomp](https://zachsexton.com/ballroomcomp)**
 
 ## Overview
 
@@ -27,6 +27,25 @@ git add k8s/apps/ballroom-competition-web/
 git commit -m "Add ballroom-competition-web app"
 git push origin master
 ```
+
+### 3. Firebase / Vite Config (1Password)
+
+This deployment loads Firebase config from a Kubernetes Secret synced by the 1Password Operator.
+
+- Kubernetes secret name: `ballroom-competition-web-firebase`
+- Source 1Password item path: `vaults/Kubernetes/items/ballroom-competition-web-firebase`
+
+Create a 1Password item with fields matching these environment variable names:
+
+- `VITE_FIREBASE_API_KEY`
+- `VITE_FIREBASE_AUTH_DOMAIN`
+- `VITE_FIREBASE_PROJECT_ID`
+- `VITE_FIREBASE_STORAGE_BUCKET`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID`
+- `VITE_FIREBASE_APP_ID`
+
+After the operator syncs, bump the `kubectl.kubernetes.io/restartedAt` annotation (or restart the
+deployment) so the pod picks up the new env vars.
 
 ## Building and Pushing Images
 
@@ -56,6 +75,14 @@ To trigger a new deployment after pushing a new image:
 kubectl rollout restart deployment/ballroom-competition-web -n web
 ```
 
+If you want to do this via Argo CD / GitOps (without running `kubectl`), bump the
+pod template annotation in `k8s/apps/ballroom-competition-web/deployment.yaml`:
+
+- `spec.template.metadata.annotations.kubectl.kubernetes.io/restartedAt`
+
+Any change to that value creates a new ReplicaSet, and because `imagePullPolicy: Always`
+is set, the new pod will pull the updated `:latest` image.
+
 Or update the image tag in `deployment.yaml` to use a specific version instead of `latest`.
 
 ## Configuration
@@ -71,11 +98,13 @@ Or update the image tag in `deployment.yaml` to use a specific version instead o
 ### Image pull errors
 
 Check if the secret exists:
+
 ```bash
 kubectl get secret zot-registry-credentials -n web -o yaml
 ```
 
 Check pod events:
+
 ```bash
 kubectl describe pod -n web -l app=ballroom-competition-web
 ```
@@ -83,17 +112,20 @@ kubectl describe pod -n web -l app=ballroom-competition-web
 ### App not accessible
 
 Check ingress:
+
 ```bash
 kubectl get ingress personal-site-ingress -n web
 kubectl describe ingress personal-site-ingress -n web
 ```
 
 Check service and pods:
+
 ```bash
 kubectl get svc,pods -n web -l app=ballroom-competition-web
 ```
 
 Check logs:
+
 ```bash
 kubectl logs -n web -l app=ballroom-competition-web
 ```
