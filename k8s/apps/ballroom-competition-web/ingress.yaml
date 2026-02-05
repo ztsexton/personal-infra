@@ -4,7 +4,7 @@ metadata:
   name: ballroom-competition-web-ingress
   namespace: web
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: web-ballroom-strip@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: web-ballroom-chain@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:

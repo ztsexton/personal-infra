@@ -8,6 +8,6 @@ spec:
     app: ballroom-competition-web
   ports:
     - port: 80
-      targetPort: 5000
+      targetPort: 3001
       protocol: TCP
   type: ClusterIP
