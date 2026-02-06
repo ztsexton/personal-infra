@@ -3,30 +3,28 @@ kind: Ingress
 metadata:
   name: ballroom-competition-web-ingress
   namespace: web
-  annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: web-ballroom-chain@kubernetescrd
 spec:
   ingressClassName: traefik
   tls:
-    - secretName: zachsexton-wildcard-tls
+    - secretName: petfoodfinder-app-tls
       hosts:
-        - zachsexton.com
-        - www.zachsexton.com
+        - petfoodfinder.app
+        - www.petfoodfinder.app
   rules:
-    - host: zachsexton.com
+    - host: petfoodfinder.app
       http:
         paths:
-          - path: /ballroomcomp
+          - path: /
             pathType: Prefix
             backend:
               service:
                 name: ballroom-competition-web
                 port:
                   number: 80
-    - host: www.zachsexton.com
+    - host: www.petfoodfinder.app
       http:
         paths:
-          - path: /ballroomcomp
+          - path: /
             pathType: Prefix
             backend:
               service:

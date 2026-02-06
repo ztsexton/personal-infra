@@ -1,10 +1,10 @@
 # Ballroom Competition Web App
 
-Accessible at: **[https://zachsexton.com/ballroomcomp](https://zachsexton.com/ballroomcomp)**
+Accessible at: **[https://petfoodfinder.app](https://petfoodfinder.app)**
 
 ## Overview
 
-This app pulls from the private Zot registry and is served at the `/ballroomcomp` path on zachsexton.com.
+This app pulls from the private Zot registry and is served at the root of petfoodfinder.app.
 
 ## Setup
 
@@ -87,10 +87,10 @@ Or update the image tag in `deployment.yaml` to use a specific version instead o
 
 ## Configuration
 
-- **Path**: `/ballroomcomp` (strip prefix middleware applied)
+- **Path**: `/` (root)
 - **Image**: `zot.zachsexton.com/ballroom-competition-web:latest`
 - **Namespace**: `web`
-- **TLS**: Uses zachsexton-wildcard-tls certificate
+- **TLS**: Uses petfoodfinder-app-tls certificate
 - **Resources**: 128Mi-256Mi memory, 100m-500m CPU
 
 ## Troubleshooting

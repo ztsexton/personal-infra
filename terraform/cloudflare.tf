@@ -67,6 +67,15 @@ resource "cloudflare_record" "petfoodfinder_root" {
   proxied = false # Disable Cloudflare proxy - DNS only
 }
 
+resource "cloudflare_record" "petfoodfinder_www" {
+  zone_id = var.cloudflare_zone_id_petfoodfinder
+  name    = "www"
+  content = hcloud_server.vps.ipv4_address
+  type    = "A"
+  ttl     = 3600
+  proxied = false
+}
+
 resource "cloudflare_record" "vigilo_root" {
   zone_id = var.cloudflare_zone_id_vigilo
   name    = "@"
