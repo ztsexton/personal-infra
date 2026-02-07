@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ballroom-db-init
+  namespace: web
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: init
+          image: postgres:16-alpine
+          command: ["psql", "-f", "/init/init.sql"]
+          env:
+            - name: PGHOST
+              value: ballroom-db-primary.web.svc
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: ballroom-db-pguser-ballroom
+                  key: dbname
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: ballroom-db-pguser-ballroom
+                  key: user
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ballroom-db-pguser-ballroom
+                  key: password
+          volumeMounts:
+            - name: init-sql
+              mountPath: /init
+      volumes:
+        - name: init-sql
+          configMap:
+            name: ballroom-db-init

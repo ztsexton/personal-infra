@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ballroom-db-init
+  namespace: web
+data:
+  init.sql: |
+    -- Grant ballroom user full privileges on public schema
+    GRANT ALL ON SCHEMA public TO ballroom;
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ballroom;
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ballroom;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ballroom;
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ballroom;

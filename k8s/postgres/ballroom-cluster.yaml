@@ -34,6 +34,11 @@ spec:
     - name: ballroom
       databases:
         - ballroom_scorer
+      options: "CREATEDB"
+
+  databaseInitSQL:
+    name: ballroom-db-init
+    key: init.sql
 
   backups:
     pgbackrest:
