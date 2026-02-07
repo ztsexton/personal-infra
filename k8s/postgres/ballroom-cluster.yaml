@@ -24,6 +24,12 @@ spec:
           cpu: 500m
           memory: 512Mi
 
+  patroni:
+    dynamicConfiguration:
+      postgresql:
+        pg_hba:
+          - "host all all all md5"
+
   users:
     - name: ballroom
       databases:
