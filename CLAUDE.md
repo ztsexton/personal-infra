@@ -13,6 +13,7 @@ This repo manages personal project infrastructure via Terraform (Cloudflare DNS 
 - **TLS**: cert-manager + Let's Encrypt + Cloudflare DNS01 challenge
 - **Secrets**: 1Password Operator syncs from 1Password vault to k8s secrets
 - **Database**: PostgreSQL 16 via Crunchy Data PGO operator (persistent local-path storage)
+- **Logging**: Fluent Bit + Loki + Grafana (grafana.zachsexton.com)
 - **Registry**: Self-hosted Zot at zot.zachsexton.com (private, htpasswd auth)
 - **DNS**: Cloudflare (DNS-only mode, no proxy) — all domains point to the single VPS IP
 - **Terraform State**: Scalr remote backend (zsexton.scalr.io)
@@ -68,13 +69,13 @@ scripts/            # Operational helper scripts
 
 ## ArgoCD Sync Wave Order
 
-| Wave | Resources                              |
-| ---- | -------------------------------------- |
-| -2   | Root application                       |
-| -1   | Traefik ingress controller             |
-| 0    | cert-manager, 1Password operator       |
-| 1    | MetalLB, PGO operator                  |
-| 2    | MetalLB config, Postgres cluster, apps |
+| Wave | Resources                                                         |
+| ---- | ----------------------------------------------------------------- |
+| -2   | Root application                                                  |
+| -1   | Traefik ingress controller                                        |
+| 0    | cert-manager, 1Password operator                                  |
+| 1    | MetalLB, PGO operator                                             |
+| 2    | MetalLB config, Postgres cluster, Loki, Fluent Bit, Grafana, apps |
 
 ## Secret Management
 
@@ -161,6 +162,23 @@ The Crunchy Data PGO operator manages PostgreSQL. Cluster definitions live in `k
 2. Define users and databases in the `spec.users` array
 3. PGO creates secrets named `<cluster>-pguser-<username>` with connection details
 4. Reference the secret in your app's deployment env vars
+
+## Logging (Loki + Fluent Bit + Grafana)
+
+Container logs are collected and searchable via Grafana at `grafana.zachsexton.com`.
+
+- **Fluent Bit**: DaemonSet that tails `/var/log/containers/*.log`, enriches with k8s metadata, ships to Loki
+- **Loki**: Log storage in monolithic (single-binary) mode with filesystem PVC on `local-path`
+- **Grafana**: UI at `grafana.zachsexton.com` (login required, default admin/admin)
+- **Namespace**: All three run in `monitoring`
+
+Apps just need to log to stdout (JSON preferred via pino). No app-side log shipping config needed.
+
+### Querying logs in Grafana
+
+1. Go to `grafana.zachsexton.com` → Explore → select Loki datasource
+2. Use LogQL: `{namespace="web", app="ballroom-competition-web"}`
+3. Filter by pod: `{pod="ballroom-competition-web-xxx"}`
 
 ## Important Notes
 

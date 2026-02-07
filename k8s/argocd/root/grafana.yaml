@@ -1,0 +1,53 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: grafana
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: default
+  source:
+    repoURL: https://grafana.github.io/helm-charts
+    chart: grafana
+    targetRevision: 8.8.2
+    helm:
+      values: |
+        persistence:
+          enabled: true
+          storageClassName: local-path
+          size: 1Gi
+        datasources:
+          datasources.yaml:
+            apiVersion: 1
+            datasources:
+              - name: Loki
+                type: loki
+                url: http://loki.monitoring.svc:3100
+                access: proxy
+                isDefault: true
+        ingress:
+          enabled: true
+          ingressClassName: traefik
+          hosts:
+            - grafana.zachsexton.com
+          tls:
+            - secretName: zachsexton-wildcard-tls
+              hosts:
+                - grafana.zachsexton.com
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

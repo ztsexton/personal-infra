@@ -48,6 +48,16 @@ resource "cloudflare_record" "zachsexton_spotifybutler" {
   proxied = false
 }
 
+# Grafana subdomain
+resource "cloudflare_record" "zachsexton_grafana" {
+  zone_id = var.cloudflare_zone_id_zachsexton
+  name    = "grafana"             # grafana.zachsexton.com
+  content = hcloud_server.vps.ipv4_address
+  type    = "A"
+  ttl     = 300
+  proxied = false
+}
+
 # Zot subdomain
 resource "cloudflare_record" "zachsexton_zot" {
   zone_id = var.cloudflare_zone_id_zachsexton
