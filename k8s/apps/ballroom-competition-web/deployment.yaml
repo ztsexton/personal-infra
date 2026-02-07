@@ -24,6 +24,28 @@ spec:
               value: "0.0.0.0"
             - name: USE_HTTPS
               value: "false"
+            - name: DATA_STORE
+              value: "postgres"
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ballroom-db-pguser-ballroom
+                  key: uri
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ballroom-db-pguser-ballroom
+                  key: user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ballroom-db-pguser-ballroom
+                  key: password
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: ballroom-db-pguser-ballroom
+                  key: dbname
           envFrom:
             - secretRef:
                 name: ballroom-competition-web-firebase
