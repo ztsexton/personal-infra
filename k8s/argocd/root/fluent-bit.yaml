@@ -39,7 +39,7 @@ spec:
                 Labels               job=fluent-bit, namespace=$kubernetes['namespace_name'], pod=$kubernetes['pod_name'], container=$kubernetes['container_name'], app=$kubernetes['labels']['app']
                 Remove_Keys          $kubernetes,$stream,$_p
                 Line_Format          json
-                Buffer_Size          64KB
+                net.buffer_max_size  256k
         resources:
           requests:
             cpu: 50m
