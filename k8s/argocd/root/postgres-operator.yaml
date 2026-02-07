@@ -8,9 +8,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/CrunchyData/postgres-operator-examples.git
-    path: kustomize/install/default
-    targetRevision: main
+    repoURL: https://github.com/CrunchyData/postgres-operator.git
+    path: config/default
+    targetRevision: v5.8.6
   destination:
     server: https://kubernetes.default.svc
     namespace: postgres-operator
