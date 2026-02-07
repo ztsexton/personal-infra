@@ -39,3 +39,6 @@ terraform.tfstate.backup
 Thumbs.db
 
 *.ssh
+
+# Local-only documentation
+DATABASE-LOCAL-ACCESS.md
