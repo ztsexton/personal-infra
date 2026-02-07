@@ -30,39 +30,14 @@ spec:
                 Keep_Log            Off
                 K8S-Logging.Parser  On
                 K8S-Logging.Exclude On
-            [FILTER]
-                Name          nest
-                Match         kube.*
-                Operation     lift
-                Nested_under  kubernetes
-                Add_prefix    k8s.
-            [FILTER]
-                Name          nest
-                Match         kube.*
-                Operation     lift
-                Nested_under  k8s.labels
-                Add_prefix    label.
-            [FILTER]
-                Name          modify
-                Match         kube.*
-                Remove        stream
-                Remove        _p
-                Remove        k8s.pod_id
-                Remove        k8s.docker_id
-                Remove        k8s.container_hash
-                Remove        k8s.container_image
-                Remove        k8s.host
-                Remove        k8s.pod_ip
-                Remove        k8s.annotations
           outputs: |
             [OUTPUT]
                 Name                 loki
                 Match                kube.*
                 Host                 loki.monitoring.svc
                 Port                 3100
-                Labels               job=fluent-bit
-                Label_Keys           k8s.namespace_name, k8s.pod_name, k8s.container_name, label.app
-                Remove_Keys          k8s.namespace_name, k8s.pod_name, k8s.container_name, label.app, label.pod-template-hash
+                Labels               job=fluent-bit, namespace=$kubernetes['namespace_name'], pod=$kubernetes['pod_name'], container=$kubernetes['container_name'], app=$kubernetes['labels']['app']
+                Remove_Keys          $kubernetes,$stream,$_p
                 Line_Format          json
         resources:
           requests:
