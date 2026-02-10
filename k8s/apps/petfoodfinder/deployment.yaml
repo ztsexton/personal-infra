@@ -20,3 +20,10 @@ spec:
             - "-text=Hello from petfoodfinder.app"
           ports:
             - containerPort: 5678
+          resources:
+            requests:
+              memory: "16Mi"
+              cpu: "5m"
+            limits:
+              memory: "32Mi"
+              cpu: "25m"

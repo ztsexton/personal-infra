@@ -37,11 +37,11 @@ spec:
                 - grafana.zachsexton.com
         resources:
           requests:
-            cpu: 100m
-            memory: 128Mi
+            cpu: 50m
+            memory: 64Mi
           limits:
-            cpu: 500m
-            memory: 256Mi
+            cpu: 200m
+            memory: 128Mi
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring

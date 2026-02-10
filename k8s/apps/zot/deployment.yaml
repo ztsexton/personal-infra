@@ -30,21 +30,21 @@ spec:
               mountPath: /var/lib/zot
           resources:
             requests:
-              memory: "256Mi"
-              cpu: "100m"
+              memory: "128Mi"
+              cpu: "50m"
             limits:
-              memory: "512Mi"
-              cpu: "500m"
+              memory: "256Mi"
+              cpu: "200m"
           readinessProbe:
             tcpSocket:
               port: 5000
             initialDelaySeconds: 5
-            periodSeconds: 10
+            periodSeconds: 30
           livenessProbe:
             tcpSocket:
               port: 5000
             initialDelaySeconds: 15
-            periodSeconds: 20
+            periodSeconds: 300
       volumes:
         - name: zot-config
           configMap:
@@ -100,10 +100,7 @@ data:
           "enable": true
         },
         "search": {
-          "enable": true,
-          "cve": {
-            "updateInterval": "2h"
-          }
+          "enable": true
         }
       }
     }

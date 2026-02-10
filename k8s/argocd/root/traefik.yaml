@@ -14,7 +14,7 @@ spec:
     helm:
       values: |
         deployment:
-          replicas: 2
+          replicas: 1
         service:
           type: LoadBalancer
           loadBalancerIP: 178.156.205.252  # Your external IP
