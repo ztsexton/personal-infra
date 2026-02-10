@@ -22,6 +22,7 @@ spec:
                 Tag               kube.*
                 Mem_Buf_Limit     5MB
                 Skip_Long_Lines   On
+                Refresh_Interval  30
           filters: |
             [FILTER]
                 Name                kubernetes

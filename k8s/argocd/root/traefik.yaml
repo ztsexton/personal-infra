@@ -42,7 +42,7 @@ spec:
           insecure: true
         metrics:
           prometheus:
-            enabled: true
+            enabled: false
   destination:
     server: https://kubernetes.default.svc
     namespace: traefik-system
