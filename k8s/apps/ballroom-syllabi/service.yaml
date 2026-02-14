@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ballroom-syllabi
+  namespace: web
+spec:
+  selector:
+    app: ballroom-syllabi
+  ports:
+    - port: 80
+      targetPort: 3000
+      protocol: TCP
+  type: ClusterIP

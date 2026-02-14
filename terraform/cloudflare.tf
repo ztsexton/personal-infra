@@ -58,6 +58,16 @@ resource "cloudflare_record" "zachsexton_grafana" {
   proxied = false
 }
 
+# Syllabus subdomain
+resource "cloudflare_record" "zachsexton_syllabus" {
+  zone_id = var.cloudflare_zone_id_zachsexton
+  name    = "syllabus"             # syllabus.zachsexton.com
+  content = hcloud_server.vps.ipv4_address
+  type    = "A"
+  ttl     = 300
+  proxied = false
+}
+
 # Zot subdomain
 resource "cloudflare_record" "zachsexton_zot" {
   zone_id = var.cloudflare_zone_id_zachsexton
