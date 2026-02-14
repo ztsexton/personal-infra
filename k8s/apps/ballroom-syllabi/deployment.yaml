@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: zot.zachsexton.com/ballroom-syllabi:main-1ff2bc1
+          image: zot.zachsexton.com/ballroom-syllabi:main-38afadb
           imagePullPolicy: Always
           env:
             - name: PORT
@@ -24,6 +24,8 @@ spec:
               value: "0.0.0.0"
             - name: GOOGLE_APPLICATION_CREDENTIALS
               value: "/etc/firebase/service-account.json"
+            - name: DEFAULT_ADMIN_EMAIL
+              value: "zsexton2011@gmail.com"
           envFrom:
             - secretRef:
                 name: ballroom-syllabi-firebase
