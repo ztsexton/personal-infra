@@ -15,6 +15,7 @@ resource "null_resource" "install_argocd" {
       user        = "root"
       private_key = var.ssh_private_key
       host        = hcloud_server.server[each.key].ipv4_address
+      timeout     = "10m"
     }
   }
 
@@ -37,6 +38,7 @@ resource "null_resource" "install_argocd" {
       user        = "root"
       private_key = var.ssh_private_key
       host        = hcloud_server.server[each.key].ipv4_address
+      timeout     = "15m"
     }
   }
 
@@ -78,6 +80,7 @@ ROOTAPP
       user        = "root"
       private_key = var.ssh_private_key
       host        = hcloud_server.server[each.key].ipv4_address
+      timeout     = "5m"
     }
   }
 
