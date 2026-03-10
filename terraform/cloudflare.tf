@@ -159,6 +159,17 @@ resource "cloudflare_record" "petfoodfinder_www" {
   proxied = false
 }
 
+# === petfoodfinder.app — Staging ===
+
+resource "cloudflare_record" "petfoodfinder_staging" {
+  zone_id = var.cloudflare_zone_id_petfoodfinder
+  name    = "staging"
+  content = hcloud_server.staging.ipv4_address
+  type    = "A"
+  ttl     = 300
+  proxied = false
+}
+
 # === vigilo.dev — Production ===
 
 resource "cloudflare_record" "vigilo_root" {
@@ -167,6 +178,17 @@ resource "cloudflare_record" "vigilo_root" {
   content = hcloud_server.production.ipv4_address
   type    = "A"
   ttl     = 3600
+  proxied = false
+}
+
+# === zachsexton.com — Staging (root) ===
+
+resource "cloudflare_record" "zachsexton_staging" {
+  zone_id = var.cloudflare_zone_id_zachsexton
+  name    = "staging"
+  content = hcloud_server.staging.ipv4_address
+  type    = "A"
+  ttl     = 300
   proxied = false
 }
 
