@@ -13,7 +13,7 @@ write_files:
       #!/usr/bin/env bash
       set -euo pipefail
       echo "[bootstrap] Starting" | systemd-cat -t bootstrap -p info
-      
+
       # Firewall
       ufw default deny incoming || true
       ufw default allow outgoing || true
@@ -43,7 +43,58 @@ write_files:
       PUBIP=$(curl -s ifconfig.me || curl -s https://api.ipify.org || echo 127.0.0.1)
       sed -i "s/127.0.0.1/$PUBIP/" /root/.kube/config || true
 
-      echo "[bootstrap] k3s installation complete. ArgoCD will be installed via Terraform." | systemd-cat -t bootstrap -p info
+      # Wait for k3s to be ready
+      echo "[bootstrap] Waiting for k3s node to be ready" | systemd-cat -t bootstrap -p info
+      until kubectl get nodes; do sleep 5; done
+
+      # Install ArgoCD
+      echo "[bootstrap] Installing ArgoCD" | systemd-cat -t bootstrap -p info
+      kubectl create namespace argocd || true
+      kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+      kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=600s
+
+      # Configure ArgoCD (insecure mode + admin password)
+      kubectl patch configmap argocd-cmd-params-cm -n argocd -p '{"data":{"server.insecure":"true"}}'
+      kubectl -n argocd patch secret argocd-secret -p "{\"stringData\": {\"admin.password\": \"${argocd_admin_password_bcrypt}\", \"admin.passwordMtime\": \"$(date +%FT%T%Z)\"}}"
+
+      # Apply root application (app-of-apps)
+      echo "[bootstrap] Applying root ArgoCD application" | systemd-cat -t bootstrap -p info
+      cat <<'ROOTAPP' | kubectl apply -f -
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: root
+        namespace: argocd
+        annotations:
+          argocd.argoproj.io/sync-wave: "-2"
+      spec:
+        project: default
+        source:
+          repoURL: ${git_repo_url}
+          path: ${git_root_app_path}
+          targetRevision: ${git_revision}
+          directory:
+            recurse: true
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: argocd
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+      ROOTAPP
+
+      # Bootstrap 1Password secrets (if provided)
+      %{ if onepassword_connect_token != "" && onepassword_credentials_json != "" ~}
+      echo "[bootstrap] Creating 1Password Connect secrets" | systemd-cat -t bootstrap -p info
+      kubectl create namespace onepassword || true
+      kubectl create secret generic onepassword-token --from-literal=token='${onepassword_connect_token}' -n onepassword --dry-run=client -o yaml | kubectl apply -f -
+      echo '${onepassword_credentials_json}' | kubectl create secret generic op-credentials --from-file=1password-credentials.json=/dev/stdin -n onepassword --dry-run=client -o yaml | kubectl apply -f -
+      echo "[bootstrap] 1Password Connect secrets created" | systemd-cat -t bootstrap -p info
+      %{ endif ~}
+
       echo "[bootstrap] Complete" | systemd-cat -t bootstrap -p info
 runcmd:
   - /root/bootstrap.sh

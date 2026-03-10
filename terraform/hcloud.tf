@@ -34,7 +34,13 @@ resource "hcloud_server" "server" {
   }
 
   user_data = templatefile("${path.module}/templates/cloud-init.yaml.tmpl", {
-    k3s_token = var.k3s_token
+    k3s_token                    = var.k3s_token
+    argocd_admin_password_bcrypt = var.argocd_admin_password_bcrypt
+    git_repo_url                 = var.git_repo_url
+    git_root_app_path            = var.git_root_app_path
+    git_revision                 = var.git_revision
+    onepassword_connect_token    = var.onepassword_connect_token
+    onepassword_credentials_json = var.onepassword_credentials_json
   })
 }
 
