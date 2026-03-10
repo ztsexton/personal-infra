@@ -2,7 +2,7 @@
 resource "cloudflare_record" "zachsexton_root" {
   zone_id = var.cloudflare_zone_id_zachsexton
   name    = "@"
-  content = hcloud_server.server["staging"].ipv4_address
+  content = hcloud_server.staging.ipv4_address
   type    = "A"
   ttl     = 3600  # Standard TTL for DNS records
   proxied = false # Disable Cloudflare proxy - DNS only
@@ -12,7 +12,7 @@ resource "cloudflare_record" "zachsexton_root" {
 resource "cloudflare_record" "zachsexton_argocd" {
   zone_id = var.cloudflare_zone_id_zachsexton
   name    = "argocd"            # argocd.zachsexton.com
-  content = hcloud_server.server["staging"].ipv4_address
+  content = hcloud_server.staging.ipv4_address
   type    = "A"
   ttl     = 300                  # Slightly lower TTL for faster changes
   proxied = false                # Keep DNS only (can enable proxy later if desired)
@@ -22,7 +22,7 @@ resource "cloudflare_record" "zachsexton_argocd" {
 resource "cloudflare_record" "zachsexton_petfoodfinder" {
   zone_id = var.cloudflare_zone_id_zachsexton
   name    = "petfoodfinder"      # petfoodfinder.zachsexton.com
-  content = hcloud_server.server["staging"].ipv4_address
+  content = hcloud_server.staging.ipv4_address
   type    = "A"
   ttl     = 300
   proxied = false
@@ -32,7 +32,7 @@ resource "cloudflare_record" "zachsexton_petfoodfinder" {
 resource "cloudflare_record" "zachsexton_vigilo" {
   zone_id = var.cloudflare_zone_id_zachsexton
   name    = "vigilo"            # vigilo.zachsexton.com
-  content = hcloud_server.server["staging"].ipv4_address
+  content = hcloud_server.staging.ipv4_address
   type    = "A"
   ttl     = 300
   proxied = false
@@ -42,7 +42,7 @@ resource "cloudflare_record" "zachsexton_vigilo" {
 resource "cloudflare_record" "zachsexton_spotifybutler" {
   zone_id = var.cloudflare_zone_id_zachsexton
   name    = "spotifybutler"     # spotifybutler.zachsexton.com
-  content = hcloud_server.server["staging"].ipv4_address
+  content = hcloud_server.staging.ipv4_address
   type    = "A"
   ttl     = 300
   proxied = false
@@ -52,7 +52,7 @@ resource "cloudflare_record" "zachsexton_spotifybutler" {
 resource "cloudflare_record" "zachsexton_grafana" {
   zone_id = var.cloudflare_zone_id_zachsexton
   name    = "grafana"             # grafana.zachsexton.com
-  content = hcloud_server.server["staging"].ipv4_address
+  content = hcloud_server.staging.ipv4_address
   type    = "A"
   ttl     = 300
   proxied = false
@@ -62,7 +62,7 @@ resource "cloudflare_record" "zachsexton_grafana" {
 resource "cloudflare_record" "zachsexton_syllabus" {
   zone_id = var.cloudflare_zone_id_zachsexton
   name    = "syllabus"             # syllabus.zachsexton.com
-  content = hcloud_server.server["staging"].ipv4_address
+  content = hcloud_server.staging.ipv4_address
   type    = "A"
   ttl     = 300
   proxied = false
@@ -72,7 +72,7 @@ resource "cloudflare_record" "zachsexton_syllabus" {
 resource "cloudflare_record" "zachsexton_zot" {
   zone_id = var.cloudflare_zone_id_zachsexton
   name    = "zot"               # zot.zachsexton.com
-  content = hcloud_server.server["staging"].ipv4_address
+  content = hcloud_server.staging.ipv4_address
   type    = "A"
   ttl     = 300
   proxied = false
@@ -81,7 +81,7 @@ resource "cloudflare_record" "zachsexton_zot" {
 resource "cloudflare_record" "petfoodfinder_root" {
   zone_id = var.cloudflare_zone_id_petfoodfinder
   name    = "@"
-  content = hcloud_server.server["staging"].ipv4_address
+  content = hcloud_server.staging.ipv4_address
   type    = "A"
   ttl     = 3600  # Standard TTL for DNS records
   proxied = false # Disable Cloudflare proxy - DNS only
@@ -90,7 +90,7 @@ resource "cloudflare_record" "petfoodfinder_root" {
 resource "cloudflare_record" "petfoodfinder_www" {
   zone_id = var.cloudflare_zone_id_petfoodfinder
   name    = "www"
-  content = hcloud_server.server["staging"].ipv4_address
+  content = hcloud_server.staging.ipv4_address
   type    = "A"
   ttl     = 3600
   proxied = false
@@ -99,7 +99,7 @@ resource "cloudflare_record" "petfoodfinder_www" {
 resource "cloudflare_record" "vigilo_root" {
   zone_id = var.cloudflare_zone_id_vigilo
   name    = "@"
-  content = hcloud_server.server["staging"].ipv4_address
+  content = hcloud_server.staging.ipv4_address
   type    = "A"
   ttl     = 3600  # Standard TTL for DNS records
   proxied = false # Disable Cloudflare proxy - DNS only
