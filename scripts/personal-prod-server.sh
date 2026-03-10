@@ -11,7 +11,7 @@ set -euo pipefail
 
 STATE_FILE="terraform/terraform.tfstate"
 SERVER_IP=""
-VPS_IP_OVERRIDE="178.156.242.161"
+VPS_IP_OVERRIDE="178.156.205.252"
 AUTO_HOSTKEY_CLEAN=1
 
 if [ -f "$STATE_FILE" ]; then
