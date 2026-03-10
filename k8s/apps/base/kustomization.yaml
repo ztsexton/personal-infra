@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  # ballroom-competition-web
+  - ballroom-competition-web/deployment.yaml
+  - ballroom-competition-web/service.yaml
+  - ballroom-competition-web/middleware.yaml
+  - ballroom-competition-web/onepassword-secret.yaml
+  # ballroom-syllabi
+  - ballroom-syllabi/deployment.yaml
+  - ballroom-syllabi/service.yaml
+  - ballroom-syllabi/pvc.yaml
+  - ballroom-syllabi/onepassword-secret.yaml
+  # mp3-helper
+  - mp3-helper/deployment.yaml
+  - mp3-helper/service.yaml
+  # personal-site
+  - personal-site/deployment.yaml
+  - personal-site/service.yaml
+  # petfoodfinder
+  - petfoodfinder/deployment.yaml
+  - petfoodfinder/service.yaml
+  # spotifybutler
+  - spotifybutler/deployment.yaml
+  - spotifybutler/service.yaml
+  # vigilo
+  - vigilo/deployment.yaml
+  - vigilo/service.yaml
+  # zot
+  - zot/deployment.yaml
+  - zot/service.yaml
+  - zot/onepassword-secret.yaml

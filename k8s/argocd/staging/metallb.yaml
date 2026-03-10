@@ -32,11 +32,8 @@ spec:
   project: default
   source:
     repoURL: https://github.com/ztsexton/personal-infra.git
-    path: k8s/networking/metallb
+    path: k8s/networking/metallb/staging
     targetRevision: HEAD
-    directory:
-      recurse: true
-      exclude: "application.yaml"  # Don't apply the nested Application
   destination:
     server: https://kubernetes.default.svc
     namespace: metallb-system

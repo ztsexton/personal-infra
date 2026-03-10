@@ -1,24 +1,24 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: cert-issuers
+  name: apps
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "2"
 spec:
   project: default
   source:
     repoURL: https://github.com/ztsexton/personal-infra.git
-    path: k8s/cert-manager
+    path: k8s/apps/overlays/staging
     targetRevision: HEAD
-    directory:
-      recurse: true
   destination:
     server: https://kubernetes.default.svc
-    namespace: cert-manager
+    namespace: web
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true

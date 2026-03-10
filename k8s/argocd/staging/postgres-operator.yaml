@@ -1,24 +1,23 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: apps
+  name: postgres-operator
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
   source:
-    repoURL: https://github.com/ztsexton/personal-infra.git
-    path: k8s/apps
-    targetRevision: HEAD
-    directory:
-      recurse: true
+    repoURL: https://github.com/CrunchyData/postgres-operator.git
+    path: config/default
+    targetRevision: v5.8.6
   destination:
     server: https://kubernetes.default.svc
-    namespace: web
+    namespace: postgres-operator
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - PrunePropagationPolicy=foreground
-      - PruneLast=true
+      - ServerSideApply=true

@@ -47,7 +47,7 @@ variable "git_repo_url" {
 variable "git_root_app_path" {
   description = "Path within repo for the root (app-of-apps) Argo CD directory."
   type        = string
-  default     = "k8s/argocd/root"
+  default     = "k8s/argocd/production"
 }
 
 variable "git_revision" {

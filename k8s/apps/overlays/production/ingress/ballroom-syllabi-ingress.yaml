@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ballroom-syllabi-ingress
+  namespace: web
+spec:
+  ingressClassName: traefik
+  tls:
+    - secretName: zachsexton-wildcard-tls
+      hosts:
+        - syllabus.zachsexton.com
+  rules:
+    - host: syllabus.zachsexton.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ballroom-syllabi
+                port:
+                  number: 80

@@ -37,7 +37,7 @@ fi
 echo '[9] Next Steps Guidance:'
 echo ' - If namespace missing AND no HelmChart: cloud-init did not seed resources; re-check user_data or apply HelmChart manually.'
 echo ' - If HelmChart exists but no pods: check k3s logs: journalctl -u k3s -n 100.'
-echo ' - If pods exist but no Applications: root Application race; apply k8s/argocd/root/apps.yaml manually.'
+echo ' - If pods exist but no Applications: root Application race; apply k8s/argocd/production/apps.yaml (or staging/apps.yaml) manually.'
 echo ' - If Applications exist but Traefik missing: describe the traefik app: kubectl describe app traefik -n argocd.'
 
 echo '=== End Diagnostic ==='

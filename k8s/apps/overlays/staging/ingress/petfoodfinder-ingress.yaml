@@ -1,0 +1,22 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: petfoodfinder-ingress
+  namespace: web
+spec:
+  ingressClassName: traefik
+  tls:
+  - hosts:
+    - petfoodfinder-staging.zachsexton.com
+    secretName: zachsexton-wildcard-tls
+  rules:
+  - host: petfoodfinder-staging.zachsexton.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: petfoodfinder
+            port:
+              number: 80

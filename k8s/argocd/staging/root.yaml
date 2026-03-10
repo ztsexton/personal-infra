@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/ztsexton/personal-infra.git
-    path: k8s/argocd/root
+    path: k8s/argocd/staging
     targetRevision: HEAD
     directory:
       recurse: true

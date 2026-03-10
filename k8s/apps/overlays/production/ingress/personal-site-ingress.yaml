@@ -1,0 +1,47 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: personal-site-ingress
+  namespace: web
+spec:
+  ingressClassName: traefik
+  rules:
+  - host: zachsexton.com
+    http:
+      paths:
+      - path: /mp3
+        pathType: Prefix
+        backend:
+          service:
+            name: mp3-helper
+            port:
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: personal-site
+            port:
+              number: 80
+  - host: www.zachsexton.com
+    http:
+      paths:
+      - path: /mp3
+        pathType: Prefix
+        backend:
+          service:
+            name: mp3-helper
+            port:
+              number: 80
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: personal-site
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - zachsexton.com
+    - www.zachsexton.com
+    secretName: zachsexton-wildcard-tls

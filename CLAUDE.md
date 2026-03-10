@@ -6,30 +6,35 @@ This repo manages personal project infrastructure via Terraform (Cloudflare DNS 
 
 ## Architecture
 
-- **Server**: Hetzner Cloud VPS (cpx21, Ubuntu 24.04, Ashburn VA)
-- **Kubernetes**: k3s (single-node, built-in Traefik disabled)
-- **GitOps**: ArgoCD with app-of-apps pattern
+- **Servers**: Hetzner Cloud VPS — production (ccx23 dedicated CPU) + staging (cpx21 shared CPU), both in Ashburn VA
+- **Kubernetes**: k3s (single-node per environment, built-in Traefik disabled)
+- **GitOps**: ArgoCD with app-of-apps pattern (separate root per environment)
 - **Ingress**: Traefik (Helm-managed, 2 replicas, LoadBalancer via MetalLB)
 - **TLS**: cert-manager + Let's Encrypt + Cloudflare DNS01 challenge
 - **Secrets**: 1Password Operator syncs from 1Password vault to k8s secrets
 - **Database**: PostgreSQL 16 via Crunchy Data PGO operator (persistent local-path storage)
 - **Logging**: Fluent Bit + Loki + Grafana (grafana.zachsexton.com)
 - **Registry**: Self-hosted Zot at zot.zachsexton.com (private, htpasswd auth)
-- **DNS**: Cloudflare (DNS-only mode, no proxy) — all domains point to the single VPS IP
+- **DNS**: Cloudflare (DNS-only mode, no proxy) — production domains point to prod IP, *-staging subdomains to staging IP
 - **Terraform State**: Scalr remote backend (zsexton.scalr.io)
 
 ## Key Directories
 
 ```text
-terraform/          # Hetzner server, Cloudflare DNS, k3s/ArgoCD bootstrap
-k8s/argocd/root/    # Root app-of-apps — ArgoCD Application definitions
-k8s/apps/           # Application manifests (deployments, services, ingress)
-k8s/cert-manager/   # ClusterIssuers + Certificate resources
-k8s/postgres/       # PostgresCluster CRs (managed by PGO operator)
-k8s/namespaces/     # Namespace definitions (web, infra)
-k8s/networking/     # MetalLB address pool config
-k8s/onepassword/    # 1Password integration examples
-scripts/            # Operational helper scripts
+terraform/                          # Hetzner servers, Cloudflare DNS, cloud-init bootstrap
+k8s/argocd/production/              # ArgoCD Application CRs for production
+k8s/argocd/staging/                 # ArgoCD Application CRs for staging
+k8s/apps/base/                      # Shared app manifests (deployments, services, secrets)
+k8s/apps/overlays/production/       # Production ingress (original hostnames)
+k8s/apps/overlays/staging/          # Staging ingress (*-staging hostnames)
+k8s/cert-manager/shared/            # ClusterIssuers + 1Password items
+k8s/cert-manager/production/        # Production certificates
+k8s/cert-manager/staging/           # Staging certificates
+k8s/networking/metallb/production/  # MetalLB config with prod IP
+k8s/networking/metallb/staging/     # MetalLB config with staging IP
+k8s/postgres/                       # PostgresCluster CRs (managed by PGO operator)
+k8s/namespaces/                     # Namespace definitions (web, infra)
+scripts/                            # Operational helper scripts
 ```
 
 ## Domains
@@ -55,17 +60,20 @@ scripts/            # Operational helper scripts
 
 ### Adding a new app
 
-1. Create deployment, service, ingress manifests in `k8s/apps/<app-name>/`
-2. If the app needs a DNS record, add it in `terraform/cloudflare.tf`
-3. If using a custom domain, add a Certificate resource in `k8s/cert-manager/certificates/`
-4. If pulling from the private registry, reference `zot-registry-credentials` imagePullSecret
-5. If the app needs secrets, create a `OnePasswordItem` CR pointing to the 1Password vault item
+1. Create deployment, service manifests in `k8s/apps/base/<app-name>/`
+2. Create ingress in both `k8s/apps/overlays/production/ingress/` and `k8s/apps/overlays/staging/ingress/`
+3. Add the new resources to the base and overlay `kustomization.yaml` files
+4. If the app needs a DNS record, add prod + staging records in `terraform/cloudflare.tf`
+5. If using a custom domain, add Certificate resources in `k8s/cert-manager/production/` and `k8s/cert-manager/staging/`
+6. If pulling from the private registry, reference `zot-registry-credentials` imagePullSecret
+7. If the app needs secrets, create a `OnePasswordItem` CR in `k8s/apps/base/<app-name>/`
 
 ### Adding a new DNS record
 
 1. Add `cloudflare_record` resource in `terraform/cloudflare.tf`
-2. All records point to the VPS IP (`hcloud_server.vps.ipv4_address`)
-3. Use `proxied = false` (DNS-only mode)
+2. Production records point to `hcloud_server.production.ipv4_address`
+3. Staging records (e.g. `*-staging.zachsexton.com`) point to `hcloud_server.staging.ipv4_address`
+4. Use `proxied = false` (DNS-only mode)
 
 ## ArgoCD Sync Wave Order
 
@@ -96,7 +104,10 @@ Current 1Password-synced secrets:
 ## Server Access
 
 ```bash
-# SSH to the VPS
+# SSH to production server
+./scripts/personal-prod-server.sh
+
+# SSH to staging server
 ./scripts/personal-web-server.sh
 
 # Get kubeconfig for local kubectl access
@@ -118,7 +129,7 @@ All sensitive values are stored in Scalr. Key variables:
 
 ### Update an app's Docker image tag
 
-Edit the `image:` field in the app's `deployment.yaml` under `k8s/apps/<app>/`.
+Edit the `image:` field in the app's `deployment.yaml` under `k8s/apps/base/<app>/` (shared across environments).
 
 ### Troubleshoot ArgoCD
 
@@ -183,7 +194,7 @@ Apps just need to log to stdout (JSON preferred via pino). No app-side log shipp
 ## Important Notes
 
 - The k3s built-in Traefik is disabled — Traefik is managed via Helm through ArgoCD
-- MetalLB binds the single VPS external IP as the LoadBalancer IP
+- MetalLB binds each server's external IP as the LoadBalancer IP (per-environment config)
 - All TLS certificates are per-domain for independent renewal
 - Zot registry has a 2GB upload limit configured via Traefik middleware
 - ArgoCD runs in insecure mode (TLS terminated at Traefik)

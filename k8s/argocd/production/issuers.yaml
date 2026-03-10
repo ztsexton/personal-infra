@@ -1,21 +1,19 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: mp3-helper
+  name: cert-issuers
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
   source:
     repoURL: https://github.com/ztsexton/personal-infra.git
-    path: k8s/apps/mp3-helper
+    path: k8s/cert-manager/production
     targetRevision: HEAD
-    directory:
-      recurse: true
   destination:
     server: https://kubernetes.default.svc
-    namespace: web
+    namespace: cert-manager
   syncPolicy:
     automated:
       prune: true
