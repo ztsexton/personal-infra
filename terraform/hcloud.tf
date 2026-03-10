@@ -10,10 +10,12 @@ locals {
     staging = {
       name        = "personal-website-vps-k3s"
       server_type = "cpx21" # Shared 3 AMD CPU + 4GB RAM + 80 GB SSD + 2 TB Traffic
+      cloud_init  = "cloud-init.yaml.tmpl"
     }
     production = {
       name        = "personal-prod-vps-k3s"
       server_type = "ccx23" # Dedicated 4 AMD CPU + 16GB RAM + 160 GB SSD + 2 TB Traffic
+      cloud_init  = "cloud-init-prod.yaml.tmpl"
     }
   }
 }
@@ -33,7 +35,7 @@ resource "hcloud_server" "server" {
     type        = "vps"
   }
 
-  user_data = templatefile("${path.module}/templates/cloud-init.yaml.tmpl", {
+  user_data = templatefile("${path.module}/templates/${each.value.cloud_init}", {
     k3s_token                    = var.k3s_token
     argocd_admin_password_bcrypt = var.argocd_admin_password_bcrypt
     git_repo_url                 = var.git_repo_url

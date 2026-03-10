@@ -1,0 +1,100 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+packages:
+  - curl
+  - ca-certificates
+  - ufw
+write_files:
+  - path: /root/bootstrap.sh
+    permissions: '0755'
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+      echo "[bootstrap] Starting" | systemd-cat -t bootstrap -p info
+
+      # Firewall
+      ufw default deny incoming || true
+      ufw default allow outgoing || true
+      for p in 22 80 443 6443; do ufw allow $p/tcp || true; done
+      echo 'y' | ufw enable || true
+
+      # Install k3s (idempotent guard)
+      if ! command -v k3s >/dev/null 2>&1; then
+        export K3S_TOKEN="${k3s_token}"
+        # Disable Traefik since we'll use Envoy via ArgoCD
+        INSTALL_K3S_EXEC="server --disable traefik --write-kubeconfig-mode=644"
+        echo "[bootstrap] Installing k3s with Traefik disabled for Envoy" | systemd-cat -t bootstrap -p info
+        curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="$INSTALL_K3S_EXEC" sh -
+      else
+        echo "[bootstrap] k3s already installed; skipping" | systemd-cat -t bootstrap -p info
+      fi
+
+      # Ensure kubectl symlink exists
+      if ! command -v kubectl >/dev/null 2>&1 && [ -x /usr/local/bin/k3s ]; then
+        ln -s /usr/local/bin/k3s /usr/local/bin/kubectl || true
+      fi
+
+      # kubeconfig convenience
+      mkdir -p /root/.kube
+      cp /etc/rancher/k3s/k3s.yaml /root/.kube/config
+      chmod 600 /root/.kube/config
+      PUBIP=$(curl -s ifconfig.me || curl -s https://api.ipify.org || echo 127.0.0.1)
+      sed -i "s/127.0.0.1/$PUBIP/" /root/.kube/config || true
+
+      # Wait for k3s to be ready
+      echo "[bootstrap] Waiting for k3s node to be ready" | systemd-cat -t bootstrap -p info
+      until kubectl get nodes; do sleep 5; done
+
+      # Install ArgoCD
+      echo "[bootstrap] Installing ArgoCD" | systemd-cat -t bootstrap -p info
+      kubectl create namespace argocd || true
+      kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+      kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=600s
+
+      # Configure ArgoCD (insecure mode + admin password)
+      kubectl patch configmap argocd-cmd-params-cm -n argocd -p '{"data":{"server.insecure":"true"}}'
+      kubectl -n argocd patch secret argocd-secret -p "{\"stringData\": {\"admin.password\": \"${argocd_admin_password_bcrypt}\", \"admin.passwordMtime\": \"$(date +%FT%T%Z)\"}}"
+
+      # Apply root application (app-of-apps)
+      echo "[bootstrap] Applying root ArgoCD application" | systemd-cat -t bootstrap -p info
+      cat <<'ROOTAPP' | kubectl apply -f -
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: root
+        namespace: argocd
+        annotations:
+          argocd.argoproj.io/sync-wave: "-2"
+      spec:
+        project: default
+        source:
+          repoURL: ${git_repo_url}
+          path: ${git_root_app_path}
+          targetRevision: ${git_revision}
+          directory:
+            recurse: true
+        destination:
+          server: https://kubernetes.default.svc
+          namespace: argocd
+        syncPolicy:
+          automated:
+            prune: true
+            selfHeal: true
+          syncOptions:
+            - CreateNamespace=true
+      ROOTAPP
+
+      # Bootstrap 1Password secrets (if provided)
+      %{ if onepassword_connect_token != "" && onepassword_credentials_json != "" ~}
+      echo "[bootstrap] Creating 1Password Connect secrets" | systemd-cat -t bootstrap -p info
+      kubectl create namespace onepassword || true
+      kubectl create secret generic onepassword-token --from-literal=token='${onepassword_connect_token}' -n onepassword --dry-run=client -o yaml | kubectl apply -f -
+      echo '${onepassword_credentials_json}' | kubectl create secret generic op-credentials --from-file=1password-credentials.json=/dev/stdin -n onepassword --dry-run=client -o yaml | kubectl apply -f -
+      echo "[bootstrap] 1Password Connect secrets created" | systemd-cat -t bootstrap -p info
+      %{ endif ~}
+
+      echo "[bootstrap] Complete" | systemd-cat -t bootstrap -p info
+runcmd:
+  - /root/bootstrap.sh
