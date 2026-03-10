@@ -1,8 +1,7 @@
 # k3s and ArgoCD deployment
 
-# Wait for k3s to be ready and install ArgoCD
 resource "null_resource" "install_argocd" {
-  depends_on = [hcloud_server.vps]
+  for_each = local.servers
 
   provisioner "remote-exec" {
     inline = [
@@ -15,7 +14,7 @@ resource "null_resource" "install_argocd" {
       type        = "ssh"
       user        = "root"
       private_key = var.ssh_private_key
-      host        = hcloud_server.vps.ipv4_address
+      host        = hcloud_server.server[each.key].ipv4_address
     }
   }
 
@@ -24,10 +23,10 @@ resource "null_resource" "install_argocd" {
     inline = [
       "kubectl create namespace argocd || true",
       "kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml",
-      
+
       # Wait for ArgoCD to be ready
       "kubectl wait --for=condition=available deployment/argocd-server -n argocd --timeout=600s",
-      
+
       # Configure ArgoCD
       "kubectl patch configmap argocd-cmd-params-cm -n argocd -p '{\"data\":{\"server.insecure\":\"true\"}}'",
       "kubectl -n argocd patch secret argocd-secret -p '{\"stringData\": {\"admin.password\": \"${var.argocd_admin_password_bcrypt}\", \"admin.passwordMtime\": \"'$(date +%FT%T%Z)'\"}}'"
@@ -37,7 +36,7 @@ resource "null_resource" "install_argocd" {
       type        = "ssh"
       user        = "root"
       private_key = var.ssh_private_key
-      host        = hcloud_server.vps.ipv4_address
+      host        = hcloud_server.server[each.key].ipv4_address
     }
   }
 
@@ -78,12 +77,17 @@ ROOTAPP
       type        = "ssh"
       user        = "root"
       private_key = var.ssh_private_key
-      host        = hcloud_server.vps.ipv4_address
+      host        = hcloud_server.server[each.key].ipv4_address
     }
   }
 
   # Trigger replacement when server is replaced
   triggers = {
-    server_id = hcloud_server.vps.id
+    server_id = hcloud_server.server[each.key].id
   }
+}
+
+moved {
+  from = null_resource.install_argocd
+  to   = null_resource.install_argocd["staging"]
 }

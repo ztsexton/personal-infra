@@ -2,10 +2,13 @@
 # This can be applied independently without recreating the server
 
 resource "null_resource" "onepassword_secrets" {
-  depends_on = [null_resource.install_argocd]
+  for_each = (
+    var.onepassword_connect_token != "" && var.onepassword_credentials_json != ""
+    ? local.servers
+    : {}
+  )
 
-  # Only run if credentials are provided
-  count = var.onepassword_connect_token != "" && var.onepassword_credentials_json != "" ? 1 : 0
+  depends_on = [null_resource.install_argocd]
 
   provisioner "remote-exec" {
     inline = [
@@ -19,7 +22,7 @@ resource "null_resource" "onepassword_secrets" {
       type        = "ssh"
       user        = "root"
       private_key = var.ssh_private_key
-      host        = hcloud_server.vps.ipv4_address
+      host        = hcloud_server.server[each.key].ipv4_address
     }
   }
 
@@ -27,4 +30,9 @@ resource "null_resource" "onepassword_secrets" {
   triggers = {
     credentials_hash = md5("${var.onepassword_connect_token}-${var.onepassword_credentials_json}")
   }
+}
+
+moved {
+  from = null_resource.onepassword_secrets[0]
+  to   = null_resource.onepassword_secrets["staging"]
 }
