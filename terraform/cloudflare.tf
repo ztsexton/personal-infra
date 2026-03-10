@@ -146,7 +146,7 @@ resource "cloudflare_record" "petfoodfinder_root" {
   name    = "@"
   content = hcloud_server.production.ipv4_address
   type    = "A"
-  ttl     = 3600
+  ttl     = 300
   proxied = false
 }
 
@@ -155,7 +155,7 @@ resource "cloudflare_record" "petfoodfinder_www" {
   name    = "www"
   content = hcloud_server.production.ipv4_address
   type    = "A"
-  ttl     = 3600
+  ttl     = 300
   proxied = false
 }
 
