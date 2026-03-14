@@ -49,6 +49,8 @@ spec:
           envFrom:
             - secretRef:
                 name: ballroom-competition-web-firebase
+            - secretRef:
+                name: resend-api-key-ballroom-competition-web
           ports:
             - containerPort: 3001
               name: http

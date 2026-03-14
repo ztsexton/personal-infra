@@ -6,6 +6,7 @@ resources:
   - ballroom-competition-web/service.yaml
   - ballroom-competition-web/middleware.yaml
   - ballroom-competition-web/onepassword-secret.yaml
+  - ballroom-competition-web/resend-secret.yaml
   # ballroom-syllabi
   - ballroom-syllabi/deployment.yaml
   - ballroom-syllabi/service.yaml
