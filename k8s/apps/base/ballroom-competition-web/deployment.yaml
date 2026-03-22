@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: zot.zachsexton.com/ballroom-competition-web:master-59dc621
+          image: zot.zachsexton.com/ballroom-competition-web:master-742a7cc
           imagePullPolicy: Always
           env:
             - name: PORT
