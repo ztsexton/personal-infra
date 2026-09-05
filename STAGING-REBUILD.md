@@ -108,35 +108,55 @@ It is safe to re-run. If only the tfvars changed, it re-runs the bootstrap
 
 ## Step 4 — Create the registry pull secret
 
-The one manual step. `zot-registry-credentials` is **not** a 1Password item — it
-is derived from `zot-auth`, which only exists once the operator has synced it,
-which happens after the bootstrap has already finished. So it cannot be another
-line in the bootstrap script.
+The one manual step, and the one that needs a value this repo does not hold.
+
+`ballroom-competition-web` and `ballroom-syllabi` pull from
+`zot.zachsexton.com` — the **production** registry — and fail with:
+
+```text
+pull access denied ... authorization failed: no basic auth credentials
+```
+
+`zot-registry-credentials` is not a 1Password item. It has to be built from the
+Zot admin username and password:
 
 ```bash
 export KUBECONFIG=$PWD/kubeconfig-staging.yaml
 
-# wait for the operator to sync zot-auth
-kubectl -n web get secret zot-auth
-
-ZOT_PW=$(kubectl -n web get secret zot-auth -o jsonpath='{.data.password}' \
-  | base64 -d | cut -d: -f2)
-
 kubectl -n web create secret docker-registry zot-registry-credentials \
   --docker-server=zot.zachsexton.com \
   --docker-username=admin \
-  --docker-password="$ZOT_PW" \
+  --docker-password='<the plaintext Zot admin password>' \
   --dry-run=client -o yaml | kubectl apply -f -
 
-kubectl -n web delete pod -l app=ballroom-competition-web   # retry the pull
+kubectl -n web delete pod -l app=ballroom-competition-web
+kubectl -n web delete pod -l app=ballroom-syllabi
 ```
 
-Staging pulls `zot.zachsexton.com/ballroom-competition-web` — the **production**
-registry — so these really are production's Zot admin credentials.
+### Why it cannot be derived from `zot-auth`
 
-> This does not survive a spin-down and must be repeated after every `up`. It can
-> be folded into the bootstrap as an opportunistic wait-and-derive; see
-> *Automating step 4* below.
+`scripts/setup-zot-registry-credentials.sh` and
+`k8s/apps/base/ballroom-competition-web/README.md` both say to take the password
+from the `zot-auth` secret:
+
+```bash
+# WRONG -- this yields a bcrypt hash, not a password
+kubectl -n web get secret zot-auth -o jsonpath='{.data.password}' | base64 -d | cut -d: -f2
+```
+
+`zot-auth` is synced from `vaults/Kubernetes/items/zot-htpasswd` and holds an
+**htpasswd line**: `admin:$2y$...`. Field 2 is the bcrypt hash Zot checks
+passwords against, not a password — feeding it to `--docker-password` produces a
+secret that always fails authentication.
+
+The plaintext exists only wherever it was originally set. If it is not in
+1Password, the alternative is to rotate it: generate a new password, regenerate
+the htpasswd entry (`scripts/setup-zot-auth.sh`), update the `zot-htpasswd` item,
+and recreate this secret. **That rotates production's registry credentials too**,
+since both environments read the same 1Password item.
+
+> Like the rest of this step, the secret does not survive a spin-down and must be
+> recreated after every `up`.
 
 ## Step 5 — Verify
 
