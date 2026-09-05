@@ -142,6 +142,19 @@ Key variables:
 
 Edit the `image:` field in the app's `deployment.yaml` under `k8s/apps/base/<app>/` (shared across environments).
 
+### Spin staging up or down
+
+```bash
+./scripts/staging.sh up       # ~4 min: address, server, k3s, Argo CD, root app
+./scripts/staging.sh down     # destroy the server, keep the address (~90% saving)
+./scripts/staging.sh status
+```
+
+Repeatable: `down` keeps the primary IP, so the IP hardcoded in the staging
+manifests stays valid and `up` needs no manual step. Only the Hetzner and
+Cloudflare credentials are supplied by hand; the SSH keypair, k3s token and Argo
+CD password are generated.
+
 ### Troubleshoot ArgoCD
 
 ```bash
