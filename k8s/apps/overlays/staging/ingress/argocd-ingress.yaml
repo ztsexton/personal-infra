@@ -18,5 +18,11 @@ spec:
         backend:
           service:
             name: argocd-server
+            # 80, not 443: the bootstrap sets server.insecure, so argocd-server
+            # serves plain HTTP. Traefik's ingress provider uses an HTTPS backend
+            # scheme for port 443, which against an HTTP listener is a 502.
+            # Production still points at 443 because its argocd-server predates
+            # this bootstrap and is still terminating TLS itself; that changes
+            # when production is next rebuilt.
             port:
-              number: 443
+              number: 80

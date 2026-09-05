@@ -105,7 +105,20 @@ preflight() {
   done
 }
 
-current_ip() { tf output -raw ipv4_address 2>/dev/null || true; }
+is_ipv4() { [[ "$1" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; }
+
+# Outputs are not evaluated during a -target apply, and `terraform output` prints
+# a "No outputs found" warning on stdout rather than failing, so the value is
+# always validated and falls back to reading the address straight out of state.
+current_ip() {
+  local ip
+  ip=$(tf output -raw ipv4_address 2>/dev/null || true)
+  if ! is_ipv4 "$ip"; then
+    ip=$(tf state show "$IP_ADDR" 2>/dev/null \
+         | grep -oP '^\s*ip_address\s*=\s*"\K[0-9.]+' || true)
+  fi
+  is_ipv4 "$ip" && printf '%s' "$ip" || true
+}
 
 manifest_ip() {
   grep -oP 'loadBalancerIP:\s*\K[0-9.]+' "$REPO/k8s/argocd/staging/traefik.yaml" 2>/dev/null || true
@@ -242,25 +255,40 @@ keyfile() {
   printf '%s' "$f"
 }
 
+# Every spin-up rebuilds the host onto the same address with a fresh host key, so
+# the stale known_hosts entry has to go or SSH refuses to connect.
+ssh_to() { # ip [args...]
+  local ip="$1"; shift
+  local key; key=$(keyfile)
+  ssh-keygen -R "$ip" >/dev/null 2>&1 || true
+  ssh -i "$key" \
+      -o StrictHostKeyChecking=accept-new \
+      -o IdentitiesOnly=yes \
+      -o ConnectTimeout=15 \
+      "root@$ip" "$@"
+}
+
 cmd_kubeconfig() {
   local ip
   ip=$(current_ip)
   [ -n "$ip" ] || die "staging has no address; run: $0 up"
-  local out="$REPO/kubeconfig-staging.yaml" key
-  key=$(keyfile)
-  ssh -i "$key" -o StrictHostKeyChecking=accept-new "root@$ip" \
-    cat /etc/rancher/k3s/k3s.yaml | sed "s/127.0.0.1/$ip/" > "$out"
+  local out="$REPO/kubeconfig-staging.yaml" tmp
+  tmp=$(mktemp)
+  ssh_to "$ip" cat /etc/rancher/k3s/k3s.yaml > "$tmp" || die "could not read the kubeconfig over SSH"
+  # Do not overwrite a good kubeconfig with an error page.
+  grep -q '^apiVersion:' "$tmp" || { rm -f "$tmp"; die "what came back is not a kubeconfig"; }
+  sed "s/127.0.0.1/$ip/" "$tmp" > "$out"
+  rm -f "$tmp"
   chmod 600 "$out"
   green "wrote $out"
   echo "export KUBECONFIG=$out"
 }
 
 cmd_ssh() {
-  local ip key
+  local ip
   ip=$(current_ip)
   [ -n "$ip" ] || die "staging has no address; run: $0 up"
-  key=$(keyfile)
-  exec ssh -i "$key" -o StrictHostKeyChecking=accept-new "root@$ip" "$@"
+  ssh_to "$ip" "$@"
 }
 
 case "${1:-}" in
