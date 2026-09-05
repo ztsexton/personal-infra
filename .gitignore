@@ -55,3 +55,6 @@ DATABASE-LOCAL-ACCESS.md
 # Private keys pulled out of Terraform state by scripts/staging.sh
 .ssh_key
 terraform/envs/*/.ssh_key
+
+# 1Password Connect credentials copy written by scripts/onepassword-connect.sh
+1password-credentials.json*

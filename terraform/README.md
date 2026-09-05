@@ -353,6 +353,23 @@ derives record content from a conditional naming both the primary IP and the
 server, and Terraform builds its dependency graph from every reference in an
 expression rather than from the branch that evaluates.
 
+#### Getting the 1Password credentials
+
+```bash
+./scripts/onepassword-connect.sh check     # is op installed and signed in
+./scripts/onepassword-connect.sh create    # new Connect server + token -> tfvars
+./scripts/onepassword-connect.sh import <credentials.json> <token>
+```
+
+Creating a Connect server needs an interactive 1Password sign-in and membership
+in a group with the **manage Secrets Automation** permission. A service account
+token will not do: service accounts cannot create Connect servers. So this step
+cannot be automated end to end without a human session.
+
+Use `import` if the pair is already saved in 1Password — **the credentials file
+cannot be downloaded again** once its Connect server exists, so `create` issues a
+new server rather than recovering the old one.
+
 #### What needs 1Password
 
 Without `onepassword_connect_token` and `onepassword_credentials_json`, the
