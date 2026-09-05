@@ -12,11 +12,7 @@ variable "cloudflare_api_token" {
   sensitive   = true
 }
 
-variable "ssh_private_key" {
-  description = "Private half of the Hetzner SSH key. Terraform uses it to run the cluster bootstrap."
-  type        = string
-  sensitive   = true
-}
+# ssh_private_key is not an input here: this root generates its own keypair.
 
 # --- Cluster ------------------------------------------------------------------
 

@@ -51,3 +51,7 @@ DATABASE-LOCAL-ACCESS.md
 # Scalr / Terraform state snapshots taken by scripts/
 .scalr-backups/
 .tfstate-backups/
+
+# Private keys pulled out of Terraform state by scripts/staging.sh
+.ssh_key
+terraform/envs/*/.ssh_key

@@ -13,9 +13,16 @@ locals {
   }
 }
 
-# Owned by envs/production; Hetzner rejects a second key with the same fingerprint.
-data "hcloud_ssh_key" "default" {
-  name = "personal_hcloud_ssh_key"
+# This environment generates and owns its own keypair, so bringing it up needs no
+# operator-supplied secret. The private half lives in this root's local state and
+# is what Terraform uses to run the cluster bootstrap over SSH.
+resource "tls_private_key" "this" {
+  algorithm = "ED25519"
+}
+
+resource "hcloud_ssh_key" "this" {
+  name       = "personal-sandbox-k3s"
+  public_key = tls_private_key.this.public_key_openssh
 }
 
 module "env" {
@@ -28,8 +35,8 @@ module "env" {
   location           = "ash"
   primary_ip_name    = "${var.server_name}-ipv4"
   protect_primary_ip = false
-  ssh_key_ids        = [data.hcloud_ssh_key.default.id]
-  ssh_private_key    = var.ssh_private_key
+  ssh_key_ids        = [hcloud_ssh_key.this.id]
+  ssh_private_key    = tls_private_key.this.private_key_openssh
 
   k3s_token = var.k3s_token
 
