@@ -50,6 +50,13 @@ variable "onepassword_credentials_json" {
   default     = ""
 }
 
+variable "registry_dockerconfigjson" {
+  description = "Docker config JSON for the private registry. Becomes the zot-registry-credentials pull secret."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 # --- Cloudflare zones ---------------------------------------------------------
 
 variable "cloudflare_zone_id_zachsexton" {

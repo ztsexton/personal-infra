@@ -71,6 +71,21 @@ log "WARNING: no Cloudflare token supplied; cert-manager cannot solve DNS01 and"
 log "         no TLS certificate will be issued."
 %{ endif ~}
 
+# --- 1c. private registry pull secret -----------------------------------------
+# Not a OnePasswordItem, and it cannot be derived from zot-auth: that secret
+# holds an htpasswd line (admin:$2y$...), whose second field is the bcrypt hash
+# Zot checks against, not a usable password. So the docker config is supplied
+# directly and recreated on every bootstrap, which is what keeps a spun-down
+# environment coming back able to pull.
+%{ if bootstrap_registry_auth ~}
+log "Creating the private registry pull secret"
+kubectl create namespace web --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n web create secret generic zot-registry-credentials   --type=kubernetes.io/dockerconfigjson   --from-file=.dockerconfigjson="$BOOTSTRAP_DIR/registry-dockerconfig.json"   --dry-run=client -o yaml | kubectl apply -f -
+%{ else ~}
+log "WARNING: no registry credentials supplied; images from the private registry"
+log "         will fail with 'no basic auth credentials'."
+%{ endif ~}
+
 # --- 2. Argo CD ---------------------------------------------------------------
 log "Installing Argo CD (argo-cd chart ${argocd_chart_version})"
 helm repo add argo https://argoproj.github.io/argo-helm >/dev/null

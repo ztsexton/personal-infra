@@ -132,6 +132,13 @@ variable "cloudflare_api_token" {
   default     = ""
 }
 
+variable "registry_dockerconfigjson" {
+  description = "Docker config JSON for the private registry, e.g. {\"auths\":{\"host\":{\"auth\":\"<base64 user:pass>\"}}}. Becomes the zot-registry-credentials pull secret. Cannot be derived from zot-auth, which holds an htpasswd line rather than a password. Empty skips it and private images will not pull."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 # --- DNS ----------------------------------------------------------------------
 
 variable "cloudflare_zone_ids" {

@@ -12,11 +12,13 @@ locals {
   })
 
   bootstrap_cloudflare_token = var.cloudflare_api_token != ""
+  bootstrap_registry_auth    = var.registry_dockerconfigjson != ""
 
   bootstrap_script = templatefile("${path.module}/templates/bootstrap-cluster.sh.tmpl", {
     argocd_chart_version       = var.argocd_chart_version
     bootstrap_onepassword      = local.bootstrap_onepassword
     bootstrap_cloudflare_token = local.bootstrap_cloudflare_token
+    bootstrap_registry_auth    = local.bootstrap_registry_auth
     git_repo_url               = var.git_repo_url
     git_root_app_path          = var.git_root_app_path
     git_revision               = var.git_revision
@@ -40,6 +42,7 @@ resource "null_resource" "cluster_bootstrap" {
     root_app_sha   = sha256(local.root_app)
     op_secrets_sha = nonsensitive(sha256("${var.onepassword_connect_token}:${var.onepassword_credentials_json}"))
     cf_token_sha   = nonsensitive(sha256(var.cloudflare_api_token))
+    registry_sha   = nonsensitive(sha256(var.registry_dockerconfigjson))
   }
 
   connection {
@@ -89,6 +92,11 @@ resource "null_resource" "cluster_bootstrap" {
     destination = "/root/bootstrap/cloudflare-api-token"
   }
 
+  provisioner "file" {
+    content     = local.bootstrap_registry_auth ? var.registry_dockerconfigjson : "unused"
+    destination = "/root/bootstrap/registry-dockerconfig.json"
+  }
+
   provisioner "remote-exec" {
     inline = [
       "chmod 0600 /root/bootstrap/*",
@@ -108,7 +116,7 @@ resource "null_resource" "cluster_bootstrap" {
           echo "cluster bootstrap failed (exit $rc); last 100 log lines:"
           tail -n 100 /var/log/cluster-bootstrap.log
         fi
-        secrets="/root/bootstrap/op-connect-token /root/bootstrap/1password-credentials.json /root/bootstrap/op-creds.b64 /root/bootstrap/cloudflare-api-token"
+        secrets="/root/bootstrap/op-connect-token /root/bootstrap/1password-credentials.json /root/bootstrap/op-creds.b64 /root/bootstrap/cloudflare-api-token /root/bootstrap/registry-dockerconfig.json"
         shred -u $secrets 2>/dev/null || rm -f $secrets
         exit $rc
       EOT
