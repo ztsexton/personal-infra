@@ -1,0 +1,97 @@
+#cloud-config
+# Installs k3s only. Argo CD, the Argo root Application and the 1Password Connect
+# credentials are delivered over SSH by Terraform (see bootstrap.tf) so that no
+# application secret is ever written into Hetzner user_data, which is readable
+# from the Hetzner console and API for the life of the server.
+package_update: true
+package_upgrade: true
+packages:
+  - curl
+  - ca-certificates
+  - ufw
+
+write_files:
+  - path: /root/install-k3s.sh
+    permissions: '0700'
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      MARKER=/var/lib/k3s-bootstrap-complete
+      log() { echo "[k3s-bootstrap] $1" | systemd-cat -t k3s-bootstrap -p info; echo "[k3s-bootstrap] $1"; }
+
+      if [ -f "$MARKER" ]; then
+        log "Marker present; nothing to do"
+        exit 0
+      fi
+
+      # --- Firewall -----------------------------------------------------------
+      # ufw sets the FORWARD policy to DROP, which breaks pod and service
+      # networking, so forwarding is re-enabled and the cluster CIDRs allowed.
+      log "Configuring ufw"
+      sed -i 's/^DEFAULT_FORWARD_POLICY=.*/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
+      ufw default deny incoming
+      ufw default allow outgoing
+      for p in 22 80 443 6443; do ufw allow "$p"/tcp; done
+      ufw allow from ${pod_cidr}
+      ufw allow from ${service_cidr}
+      ufw allow in on cni0
+      echo 'y' | ufw enable
+
+      # --- k3s ----------------------------------------------------------------
+      # When the module does not own a primary IP the address is unknown at plan
+      # time, so it is resolved here instead.
+      PUBIP="${public_ip}"
+      if [ -z "$PUBIP" ]; then
+        PUBIP=$(curl -sf https://api.ipify.org || curl -sf https://ifconfig.me || true)
+      fi
+      if [ -z "$PUBIP" ]; then
+        log "ERROR: could not determine the public IP; k3s needs it for --tls-san"
+        exit 1
+      fi
+      log "Public IP: $PUBIP"
+
+      if ! command -v k3s >/dev/null 2>&1; then
+        log "Installing k3s ${k3s_version}"
+        # traefik  -> managed by Argo CD via the Traefik Helm chart
+        # servicelb -> replaced by MetalLB; leaving klipper-lb on makes both
+        #              controllers fight over LoadBalancer services
+        # tls-san   -> lets a kubeconfig rewritten to the public IP actually
+        #              validate, which the documented scp workflow depends on
+        curl -sfL https://get.k3s.io \
+          | INSTALL_K3S_VERSION="${k3s_version}" \
+            K3S_TOKEN="${k3s_token}" \
+            INSTALL_K3S_EXEC="server --disable traefik --disable servicelb --tls-san $PUBIP --node-external-ip $PUBIP --write-kubeconfig-mode 600" \
+            sh -
+      else
+        log "k3s already installed; skipping"
+      fi
+
+      if ! command -v kubectl >/dev/null 2>&1 && [ -x /usr/local/bin/k3s ]; then
+        ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl
+      fi
+
+      export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+      echo 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml' > /etc/profile.d/k3s.sh
+
+      log "Waiting for the node to become Ready"
+      for i in $(seq 1 120); do
+        if kubectl wait --for=condition=Ready node --all --timeout=10s >/dev/null 2>&1; then
+          break
+        fi
+        sleep 5
+      done
+      kubectl wait --for=condition=Ready node --all --timeout=60s
+
+      # --- helm ---------------------------------------------------------------
+      if ! command -v helm >/dev/null 2>&1; then
+        log "Installing helm"
+        curl -sfL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      fi
+
+      touch "$MARKER"
+      log "Complete"
+
+runcmd:
+  - ["/bin/bash", "-c", "/root/install-k3s.sh 2>&1 | tee -a /var/log/k3s-bootstrap.log"]

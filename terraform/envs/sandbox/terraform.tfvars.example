@@ -1,0 +1,38 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+# Every value here already exists in the Scalr workspace or in 1Password; pull
+# them from there rather than inventing new ones.
+
+hcloud_token         = ""
+cloudflare_api_token = ""
+
+# Private half of the "personal_hcloud_ssh_key" Hetzner key. Use a heredoc so the
+# newlines survive:
+#   ssh_private_key = <<-EOT
+#     -----BEGIN OPENSSH PRIVATE KEY-----
+#     ...
+#     -----END OPENSSH PRIVATE KEY-----
+#   EOT
+ssh_private_key = ""
+
+k3s_token = ""
+
+# htpasswd -nbBC 10 admin 'yourpassword' | cut -d: -f2
+argocd_admin_password_bcrypt = ""
+
+# Leave empty to skip the 1Password bootstrap. Doing so leaves
+# onepassword-operator Degraded and every OnePasswordItem-backed secret missing
+# (cloudflare-api-token, zot-auth, zot-registry-credentials, ...).
+onepassword_connect_token    = ""
+onepassword_credentials_json = ""
+
+cloudflare_zone_id_zachsexton    = ""
+cloudflare_zone_id_petfoodfinder = ""
+cloudflare_zone_id_vigilo        = ""
+
+# --- Sandbox-only knobs -------------------------------------------------------
+
+# server_name       = "personal-sandbox-vps-k3s"
+# server_type       = "cpx21"
+# bootstrap_cluster = true
+# git_root_app_path = "k8s/argocd/staging"
+# git_revision      = "my-feature-branch"

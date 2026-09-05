@@ -36,12 +36,13 @@ Only provisions:
 Apply (local example):
 
 ```bash
-cd terraform
+cd terraform/envs/staging     # or sandbox
 terraform init
 terraform apply
 ```
 
-(Or via Scalr backend if configured.)
+Production lives in `terraform/envs/production` and is applied through Scalr.
+See `terraform/README.md` for the layout, local setup, and the migration runbook.
 
 ## Accessing the Cluster
 

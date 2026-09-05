@@ -9,9 +9,9 @@ set -euo pipefail
 
 : "${SSH_USER:=root}"
 
-STATE_FILE="terraform/terraform.tfstate"
+STATE_FILE="terraform/envs/staging/terraform.tfstate"
 SERVER_IP=""
-VPS_IP_OVERRIDE="178.156.205.252"
+VPS_IP_OVERRIDE="178.156.242.161"
 AUTO_HOSTKEY_CLEAN=1
 
 if [ -f "$STATE_FILE" ]; then

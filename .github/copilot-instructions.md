@@ -30,7 +30,7 @@ This fetches kubeconfig, installs cert-manager, seeds Cloudflare secret.
 1. Create manifests in `k8s/apps/<app-name>/` (deployment.yaml, service.yaml, ingress.yaml)
 2. Set `namespace: web` in all manifests
 3. Create `Certificate` in `k8s/cert-manager/certificates/<domain>.yaml` if new domain
-4. Add DNS A record in `terraform/cloudflare.tf`
+4. Add a DNS A record to the `dns_records` map in `terraform/envs/production/main.tf` (and `envs/staging/main.tf`)
 5. Commit → Scalr applies DNS → Argo CD syncs app
 
 ### 4. Debugging Argo CD
