@@ -38,9 +38,14 @@ service accounts cannot create Connect servers.
 # into other shells
 eval $(op signin)
 
+./scripts/onepassword-connect.sh check     # must report "signed in"
 ./scripts/onepassword-connect.sh list      # read-only; shows production's server
 ./scripts/onepassword-connect.sh create personal-infra-staging Kubernetes,Kubernetes-Staging
 ```
+
+`check` tests `op whoami`, not `op account list` — the latter exits 0 for an
+account that is merely *added*, signed in or not, so it cannot detect a session.
+All three must run in the same shell as the `op signin`.
 
 Both vaults on purpose: every `OnePasswordItem` in the repo references
 `vaults/Kubernetes/...`, so a server scoped only to the staging vault resolves
@@ -141,7 +146,7 @@ registry — so these really are production's Zot admin credentials.
 
 Expected once steps 1–4 are done:
 
-```
+```text
 HOST                                       DNS      CODE   NOTE
 staging.zachsexton.com                     ok       200
 petfoodfinder-staging.zachsexton.com       ok       200

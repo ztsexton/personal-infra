@@ -36,16 +36,21 @@ cmd_check() {
   echo "op version : $(op --version)"
   echo "tfvars     : $TFVARS"
   echo
-  if op account list 2>/dev/null | grep -q .; then
+  # `op account list` exits 0 for a merely ADDED account, signed in or not, so it
+  # cannot be used to test for a session. `op whoami` needs a live one.
+  if op whoami >/dev/null 2>&1; then
     green "signed in:"
-    op account list
-  else
-    warn "not signed in. Either:"
-    warn "  - turn on the desktop app integration, or"
-    warn "  - op account add --address <team>.1password.com --email <you>"
-    warn '    then: eval $(op signin)' 
-    return 1
+    op whoami
+    return 0
   fi
+
+  warn "an account is configured but there is no active session:"
+  op account list 2>/dev/null | sed 's/^/  /'
+  echo
+  warn "sign in, then run create IN THE SAME SHELL -- the session is an env var"
+  warn "and does not survive into another process:"
+  warn "    eval \$(op signin)"
+  return 1
 }
 
 # HCL interpolates \${...} even inside heredocs, so any literal \${ in the value
@@ -94,9 +99,9 @@ cmd_create() {
   cmd_check >/dev/null || die "sign in first: ./scripts/onepassword-connect.sh check"
 
   # Show what already exists, so it is obvious this is additive and that
-  # production's Connect server is left alone.
+  # production's Connect server is left alone. Never fatal.
   step "Connect servers that already exist (these are not modified)"
-  op connect server list 2>&1 | sed 's/^/  /'
+  op connect server list 2>&1 | sed 's/^/  /' || true
   echo
 
   local server="${1:-personal-infra-$ENVIRONMENT}"
@@ -112,8 +117,19 @@ cmd_create() {
   warn "The credentials file cannot be downloaded again. It is saved into the"
   warn "gitignored tfvars below -- also store it in 1Password."
 
-  ( cd "$workdir" && op connect server create "$server" --vaults "$vaults" ) \
-    || die "could not create the Connect server (needs 'manage Secrets Automation')"
+  local err
+  err="$workdir/create.err"
+  if ! ( cd "$workdir" && op connect server create "$server" --vaults "$vaults" 2>"$err" ); then
+    red "op could not create the Connect server:"
+    sed 's/^/  /' "$err" >&2
+    echo >&2
+    warn "common causes:"
+    warn "  - no active session in THIS shell      -> eval \$(op signin)"
+    warn "  - a vault name does not match exactly  -> op vault list"
+    warn "  - your account lacks the 'manage Secrets Automation' permission"
+    warn "  - a server called '$server' already exists -> $0 list"
+    exit 1
+  fi
 
   local credfile="$workdir/1password-credentials.json"
   [ -f "$credfile" ] || die "op did not produce 1password-credentials.json"
