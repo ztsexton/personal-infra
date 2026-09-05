@@ -4,6 +4,7 @@
 # Terraform variable files containing secrets or local settings
 *.tfvars
 *.tfvars.json
+!*.tfvars.example
 
 # Override files for different environments
 override.tf
@@ -26,7 +27,12 @@ crash.log
 # Sensitive auto-generated files
 terraform.tfstate
 terraform.tfstate.backup
+sandbox.tfstate
 *.log
+
+# Kubeconfigs pulled off the servers
+kubeconfig
+kubeconfig-*.yaml
 
 # Ignore IDE/editor settings (optional, but common)
 .vscode/
@@ -42,3 +48,6 @@ Thumbs.db
 
 # Local-only documentation
 DATABASE-LOCAL-ACCESS.md
+# Scalr / Terraform state snapshots taken by scripts/
+.scalr-backups/
+.tfstate-backups/

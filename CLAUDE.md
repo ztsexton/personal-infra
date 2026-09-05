@@ -16,12 +16,15 @@ This repo manages personal project infrastructure via Terraform (Cloudflare DNS 
 - **Logging**: Fluent Bit + Loki + Grafana (grafana.zachsexton.com)
 - **Registry**: Self-hosted Zot at zot.zachsexton.com (private, htpasswd auth)
 - **DNS**: Cloudflare (DNS-only mode, no proxy) — production domains point to prod IP, *-staging subdomains to staging IP
-- **Terraform State**: Scalr remote backend (zsexton.scalr.io)
+- **Terraform State**: per-environment. Production in Scalr (zsexton.scalr.io); staging and sandbox local
 
 ## Key Directories
 
 ```text
-terraform/                          # Hetzner servers, Cloudflare DNS, cloud-init bootstrap
+terraform/modules/environment/      # Reusable env: primary IP, server, DNS, cluster bootstrap
+terraform/envs/production/          # Production root (state in Scalr, applied via Scalr)
+terraform/envs/staging/             # Staging root (local state, applied locally)
+terraform/envs/sandbox/             # Throwaway root for testing create/destroy locally
 k8s/argocd/production/              # ArgoCD Application CRs for production
 k8s/argocd/staging/                 # ArgoCD Application CRs for staging
 k8s/apps/base/                      # Shared app manifests (deployments, services, secrets)
@@ -55,25 +58,29 @@ scripts/                            # Operational helper scripts
 
 ### Infrastructure changes (DNS, server)
 
-1. Edit Terraform files under `terraform/`
-2. Run `terraform plan` and `terraform apply` (state in Scalr)
+1. Edit `terraform/modules/environment/` (shared) or the relevant `terraform/envs/<env>/`
+2. `cd terraform/envs/<env> && terraform plan && terraform apply`
+
+Each environment is a separate root module with its own state, so `destroy` in one
+cannot reach another. Production runs through Scalr; staging and sandbox run
+locally. See `terraform/README.md` for setup and the migration runbook.
 
 ### Adding a new app
 
 1. Create deployment, service manifests in `k8s/apps/base/<app-name>/`
 2. Create ingress in both `k8s/apps/overlays/production/ingress/` and `k8s/apps/overlays/staging/ingress/`
 3. Add the new resources to the base and overlay `kustomization.yaml` files
-4. If the app needs a DNS record, add prod + staging records in `terraform/cloudflare.tf`
+4. If the app needs a DNS record, add it to the `dns_records` map in `terraform/envs/production/main.tf` and `terraform/envs/staging/main.tf`
 5. If using a custom domain, add Certificate resources in `k8s/cert-manager/production/` and `k8s/cert-manager/staging/`
 6. If pulling from the private registry, reference `zot-registry-credentials` imagePullSecret
 7. If the app needs secrets, create a `OnePasswordItem` CR in `k8s/apps/base/<app-name>/`
 
 ### Adding a new DNS record
 
-1. Add `cloudflare_record` resource in `terraform/cloudflare.tf`
-2. Production records point to `hcloud_server.production.ipv4_address`
-3. Staging records (e.g. `*-staging.zachsexton.com`) point to `hcloud_server.staging.ipv4_address`
-4. Use `proxied = false` (DNS-only mode)
+1. Add an entry to the `dns_records` map in `terraform/envs/production/main.tf`
+2. Add the `*-staging` counterpart to `terraform/envs/staging/main.tf`
+3. Records automatically point at that environment's primary IP; `proxied = false`
+   is set for all of them (DNS-only mode)
 
 ## ArgoCD Sync Wave Order
 
@@ -110,13 +117,16 @@ Current 1Password-synced secrets:
 # SSH to staging server
 ./scripts/personal-web-server.sh
 
-# Get kubeconfig for local kubectl access
-scp root@<server-ip>:/etc/rancher/k3s/k3s.yaml ~/.kube/config
+# Get kubeconfig for local kubectl access. k3s is installed with
+# --tls-san <public ip>, so the rewritten server address passes cert validation.
+cd terraform/envs/<env> && eval "$(terraform output -raw kubeconfig_command)"
 ```
 
 ## Terraform Variables
 
-All sensitive values are stored in Scalr. Key variables:
+Production's values live in Scalr. For staging and sandbox, copy
+`terraform.tfvars.example` in the env directory and fill it in (gitignored).
+Key variables:
 
 - `hcloud_token`, `ssh_public_key`, `ssh_private_key` — Hetzner access
 - `k3s_token` — k3s cluster join token
@@ -143,16 +153,13 @@ Edit the `image:` field in the app's `deployment.yaml` under `k8s/apps/base/<app
 ./scripts/diagnose_ingress.sh
 ```
 
-### Update 1Password secrets on the server
+### Re-run the cluster bootstrap
+
+Set the new values in the env's `terraform.tfvars` and re-apply; the bootstrap is
+idempotent and re-runs whenever its inputs change.
 
 ```bash
-./scripts/update-1password-secrets.sh <credentials.json> <connect-token>
-```
-
-### Update Cloudflare API token
-
-```bash
-./scripts/update-cloudflare-token.sh
+cd terraform/envs/<env> && terraform apply
 ```
 
 ## PostgreSQL (PGO)

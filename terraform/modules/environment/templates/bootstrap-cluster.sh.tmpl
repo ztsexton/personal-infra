@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# Rendered by Terraform and executed over SSH. Idempotent: safe to re-run.
+set -euo pipefail
+
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+export PATH="$PATH:/usr/local/bin"
+
+log() { echo "[cluster-bootstrap] $*"; }
+
+BOOTSTRAP_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# --- 0. Wait for cloud-init's k3s install to finish ---------------------------
+log "Waiting for k3s bootstrap marker"
+for i in $(seq 1 180); do
+  [ -f /var/lib/k3s-bootstrap-complete ] && break
+  sleep 10
+done
+if [ ! -f /var/lib/k3s-bootstrap-complete ]; then
+  log "ERROR: k3s never finished installing. Last 50 lines of /var/log/k3s-bootstrap.log:"
+  tail -n 50 /var/log/k3s-bootstrap.log 2>/dev/null || true
+  exit 1
+fi
+
+kubectl wait --for=condition=Ready node --all --timeout=300s
+
+# --- 1. 1Password Connect credentials -----------------------------------------
+# These MUST exist before the Argo root Application is applied. The root app
+# syncs onepassword-operator at wave 0, and the Connect deployment mounts both
+# of these secrets; creating them afterwards leaves a fresh cluster sitting in
+# a Degraded state until Argo happens to retry.
+%{ if bootstrap_onepassword ~}
+log "Creating 1Password Connect secrets"
+kubectl create namespace onepassword --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl -n onepassword create secret generic onepassword-token \
+  --from-literal=token="$(cat "$BOOTSTRAP_DIR/op-connect-token")" \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl -n onepassword create secret generic op-credentials \
+  --from-file=1password-credentials.json="$BOOTSTRAP_DIR/1password-credentials.json" \
+  --dry-run=client -o yaml | kubectl apply -f -
+%{ else ~}
+log "WARNING: 1Password Connect credentials not supplied; skipping."
+log "         onepassword-operator will stay Degraded and every OnePasswordItem"
+log "         backed secret (cloudflare-api-token, zot-auth, ...) will be missing."
+%{ endif ~}
+
+# --- 2. Argo CD ---------------------------------------------------------------
+log "Installing Argo CD (argo-cd chart ${argocd_chart_version})"
+helm repo add argo https://argoproj.github.io/argo-helm >/dev/null
+helm repo update argo >/dev/null
+
+helm upgrade --install argocd argo/argo-cd \
+  --namespace argocd \
+  --create-namespace \
+  --version "${argocd_chart_version}" \
+  --values "$BOOTSTRAP_DIR/argocd-values.yaml" \
+  --wait \
+  --timeout 15m
+
+kubectl -n argocd rollout status deploy/argocd-server --timeout=300s
+
+# The chart-generated bootstrap secret is redundant once the admin password is
+# set declaratively, and it is a standing plaintext copy of a credential.
+kubectl -n argocd delete secret argocd-initial-admin-secret --ignore-not-found
+
+# --- 3. Root (app-of-apps) Application ----------------------------------------
+log "Waiting for the Application CRD"
+kubectl wait --for=condition=Established crd/applications.argoproj.io --timeout=300s
+
+log "Applying root Application -> ${git_repo_url} @ ${git_revision} : ${git_root_app_path}"
+kubectl apply -f "$BOOTSTRAP_DIR/root-app.yaml"
+
+log "Complete. Argo CD will now sync sync-waves -1 through 2."

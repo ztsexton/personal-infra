@@ -103,14 +103,15 @@ personal-infra/
 ### 1. Terraform Infrastructure
 
 The Terraform configuration creates:
-- Hetzner Cloud VPS with cloud-init bootstrap
+- Hetzner Cloud VPS with cloud-init bootstrap (k3s only)
 - Cloudflare DNS records for all domains
-- Automated ArgoCD installation via remote-exec
+- Argo CD install + app-of-apps root Application, driven over SSH from Terraform
 
 **Important Files:**
-- `terraform/hcloud.tf`: VPS provisioning
-- `terraform/cloudflare.tf`: DNS management  
-- `terraform/k3s.tf`: Post-provisioning automation
+- `terraform/modules/environment/`: server, primary IP, DNS and cluster bootstrap
+- `terraform/modules/environment/templates/`: cloud-init and bootstrap scripts
+- `terraform/envs/<env>/main.tf`: per-environment settings and DNS records
+- `terraform/README.md`: layout, local setup, migration runbook
 
 ### 2. k3s Installation
 

@@ -1,0 +1,27 @@
+# Argo CD configuration applied at install time by Helm.
+#
+# server.insecure is set here rather than patched onto argocd-cmd-params-cm after
+# the fact: Argo CD reads that ConfigMap only at process start, so a post-install
+# patch leaves argocd-server serving TLS while Traefik speaks plain HTTP to it.
+configs:
+  params:
+    server.insecure: true
+  secret:
+    argocdServerAdminPassword: "${argocd_admin_password_bcrypt}"
+    # Static so re-running the bootstrap is idempotent; changing the password
+    # itself still takes effect because the secret data changes.
+    argocdServerAdminPasswordMtime: "2024-01-01T00:00:00Z"
+
+server:
+  service:
+    type: ClusterIP
+
+# Single-node cluster: no point scheduling replicas that cannot spread.
+redis-ha:
+  enabled: false
+controller:
+  replicas: 1
+repoServer:
+  replicas: 1
+applicationSet:
+  replicas: 1
