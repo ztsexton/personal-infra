@@ -10,16 +10,32 @@ you merge, not when the box happens to be up. So the registry CI pushes to has t
 be always-on, which meant Zot in production could never be part of an environment
 that spins down. GHCR is always available and needs no self-hosting.
 
+## The pull secret covers both registries
+
+`registry_dockerconfigjson` holds auths for **both** `zot.zachsexton.com` and
+`ghcr.io`:
+
+```json
+{"auths":{"zot.zachsexton.com":{"auth":"..."},"ghcr.io":{"auth":"..."}}}
+```
+
+A Docker config can carry many registries, so the same secret authenticates
+before and after the manifest flip. That removes the ordering constraint on the
+credential entirely — it can be rolled out first, and nothing breaks whichever
+registry the manifests currently name.
+
+What remains ordered is only the *image*: it has to exist in GHCR before the
+manifest points at it.
+
 ## The ordering trap
 
 `k8s/apps/base/` is shared by production and staging, and production's Argo CD
 self-heals from `master`. **The moment the image reference changes on `master`,
 production tries to pull from the new registry.** So:
 
-- if the image is not in GHCR yet → `ImagePullBackOff`
-- if the pull secret still holds Zot credentials → `no basic auth credentials`
-
-Either takes production down. The manifest change must land **last**.
+With the dual-registry secret above rolled out, the credential half of this is
+solved. What is left is the image: **if it is not in GHCR yet, production gets
+`ImagePullBackOff`.** The manifest change must land after the images exist.
 
 There is no way to stage this per-environment: the image reference lives in the
 shared base, so both environments cut over together.
@@ -28,7 +44,14 @@ shared base, so both environments cut over together.
 
 ### 1. Push images to GHCR first
 
-Merge the `ghcr-migration` branch in the app repos:
+Push and merge the `ghcr-migration` branch in the app repos. **Pushing these
+needs a token with the `workflow` scope** — neither the `gh` OAuth token nor the
+classic PAT in 1Password has it, so this cannot be done from an agent session:
+
+```bash
+gh auth refresh -s workflow      # then push
+```
+
 
 - `ztsexton/ballroom-competition-web` — `docker-push.yaml` and `update-deployment.yaml`
 - `ztsexton/ballroom-study-buddy` — `build-and-push.yml`
@@ -57,15 +80,16 @@ Production is **not** bootstrapped by Terraform (`bootstrap_cluster = false`), s
 nothing creates this for it. Its existing `zot-registry-credentials` secret holds
 Zot credentials.
 
-Keep the name and replace the contents — that avoids touching the
-`imagePullSecrets` reference in the shared base manifest, which would otherwise
-have to change for both environments at once:
+Keep the name and replace the contents with a config covering **both**
+registries. Because it still authenticates to Zot, this is safe to apply
+immediately — production keeps pulling from Zot until the manifest changes, and
+then starts pulling from GHCR without a second change:
 
 ```bash
 # against the production cluster
 kubectl -n web create secret generic zot-registry-credentials \
   --type=kubernetes.io/dockerconfigjson \
-  --from-literal=.dockerconfigjson='{"auths":{"ghcr.io":{"auth":"<base64 of ztsexton:ghp_...>"}}}' \
+  --from-literal=.dockerconfigjson='{"auths":{"zot.zachsexton.com":{"auth":"<base64 admin:zot-pw>"},"ghcr.io":{"auth":"<base64 ztsexton:ghp_...>"}}}' \
   --dry-run=client -o yaml | kubectl apply -f -
 ```
 
@@ -75,9 +99,9 @@ through the shared manifest before anything created the new name.
 
 ### 3. Staging already has it
 
-`registry_dockerconfigjson` in `terraform/envs/staging/terraform.tfvars` is
-already pointed at `ghcr.io`, and the bootstrap writes the secret on every
-rebuild. Re-run to apply:
+`registry_dockerconfigjson` in `terraform/envs/staging/terraform.tfvars` already
+carries both registries, and the bootstrap writes the secret on every rebuild.
+Re-run to apply:
 
 ```bash
 ./scripts/staging.sh up
