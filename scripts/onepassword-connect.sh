@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Put 1Password Connect credentials into an environment's terraform.tfvars.
 #
+#   ./scripts/onepassword-connect.sh list
 #   ./scripts/onepassword-connect.sh check
 #   ./scripts/onepassword-connect.sh create [server-name] [vault]
 #   ./scripts/onepassword-connect.sh import <credentials.json> <token>
@@ -78,9 +79,25 @@ print("credentials file looks valid")
 PY
 }
 
+cmd_list() {
+  need_op
+  step "Connect servers on this account"
+  op connect server list 2>&1
+  echo
+  echo "Servers are independent: creating one does not touch another's"
+  echo "credentials or tokens, and vault access is granted per server"
+  echo "(revoking is a separate 'op connect vault revoke')."
+}
+
 cmd_create() {
   need_op
   cmd_check >/dev/null || die "sign in first: ./scripts/onepassword-connect.sh check"
+
+  # Show what already exists, so it is obvious this is additive and that
+  # production's Connect server is left alone.
+  step "Connect servers that already exist (these are not modified)"
+  op connect server list 2>&1 | sed 's/^/  /'
+  echo
 
   local server="${1:-personal-infra-$ENVIRONMENT}"
   # Comma-separated. The repo's OnePasswordItem CRs all reference
@@ -147,6 +164,7 @@ cmd_import() {
 }
 
 case "${1:-}" in
+  list)   cmd_list ;;
   check)  cmd_check ;;
   create) shift; cmd_create "$@" ;;
   import) shift; cmd_import "$@" ;;
@@ -154,6 +172,7 @@ case "${1:-}" in
     cat >&2 <<EOF
 usage: $0 <command>
 
+  list                               existing Connect servers (read-only)
   check                              is op installed and signed in
   create [server-name] [vaults]      new Connect server + token -> tfvars
                                      vaults is comma-separated;
