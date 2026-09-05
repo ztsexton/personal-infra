@@ -83,26 +83,40 @@ cmd_create() {
   cmd_check >/dev/null || die "sign in first: ./scripts/onepassword-connect.sh check"
 
   local server="${1:-personal-infra-$ENVIRONMENT}"
-  local vault="${2:-Kubernetes}"
+  # Comma-separated. The repo's OnePasswordItem CRs all reference
+  # vaults/Kubernetes/..., so a server scoped only to a staging vault resolves
+  # none of them.
+  local vaults="${2:-Kubernetes,Kubernetes-Staging}"
   local token_name="$server-token"
   local workdir
   workdir=$(mktemp -d)
 
-  step "creating Connect server '$server' with access to vault '$vault'"
+  step "creating Connect server '$server' with access to: $vaults"
   warn "The credentials file cannot be downloaded again. It is saved into the"
   warn "gitignored tfvars below -- also store it in 1Password."
 
-  ( cd "$workdir" && op connect server create "$server" --vaults "$vault" ) \
+  ( cd "$workdir" && op connect server create "$server" --vaults "$vaults" ) \
     || die "could not create the Connect server (needs 'manage Secrets Automation')"
 
   local credfile="$workdir/1password-credentials.json"
   [ -f "$credfile" ] || die "op did not produce 1password-credentials.json"
   validate_credentials "$credfile"
 
-  step "creating a Connect token"
+  step "creating a read-only Connect token"
+  # The operator only ever reads, so the token is scoped read-only per vault
+  # (",r"). If that form is rejected, fall back to inheriting the server's
+  # permissions rather than failing the whole run.
+  local vaultargs=() v
+  IFS=',' read -ra _vs <<<"$vaults"
+  for v in "${_vs[@]}"; do vaultargs+=(--vaults "$v,r"); done
+
   local token
-  token=$(op connect token create "$token_name" --server "$server" --vault "$vault") \
-    || die "could not create the Connect token"
+  token=$(op connect token create "$token_name" --server "$server" "${vaultargs[@]}" 2>/dev/null) || token=""
+  if [ -z "$token" ]; then
+    warn "read-only scoping was rejected; issuing a token with the server's permissions"
+    token=$(op connect token create "$token_name" --server "$server") \
+      || die "could not create the Connect token"
+  fi
   [ -n "$token" ] || die "the token came back empty"
 
   write_var onepassword_credentials_json "$(cat "$credfile")"
@@ -141,7 +155,9 @@ case "${1:-}" in
 usage: $0 <command>
 
   check                              is op installed and signed in
-  create [server-name] [vault]       new Connect server + token -> tfvars
+  create [server-name] [vaults]      new Connect server + token -> tfvars
+                                     vaults is comma-separated;
+                                     default: Kubernetes,Kubernetes-Staging
   import <credentials.json> <token>  use a pair you already have
 
 Environment: $ENVIRONMENT  (override with ENVIRONMENT=sandbox)
