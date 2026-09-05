@@ -36,8 +36,16 @@ kubectl -n onepassword create secret generic onepassword-token \
   --from-literal=token="$(cat "$BOOTSTRAP_DIR/op-connect-token")" \
   --dry-run=client -o yaml | kubectl apply -f -
 
+# Connect does not read this file as JSON: it base64-decodes it first, so the
+# secret has to hold BASE64-ENCODED JSON. Handing it the raw file produces
+#   LoadLocalAuthV2 failed to credentialsDataFromBase64,
+#   illegal base64 data at input byte 0
+# and connect-sync then retries forever while every OnePasswordItem fails with
+# "failed to GetVaultsByTitle ... status 500: failed to initiate".
+base64 -w0 "$BOOTSTRAP_DIR/1password-credentials.json" > "$BOOTSTRAP_DIR/op-creds.b64"
+
 kubectl -n onepassword create secret generic op-credentials \
-  --from-file=1password-credentials.json="$BOOTSTRAP_DIR/1password-credentials.json" \
+  --from-file=1password-credentials.json="$BOOTSTRAP_DIR/op-creds.b64" \
   --dry-run=client -o yaml | kubectl apply -f -
 %{ else ~}
 log "WARNING: 1Password Connect credentials not supplied; skipping."

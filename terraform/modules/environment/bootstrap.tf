@@ -108,7 +108,7 @@ resource "null_resource" "cluster_bootstrap" {
           echo "cluster bootstrap failed (exit $rc); last 100 log lines:"
           tail -n 100 /var/log/cluster-bootstrap.log
         fi
-        secrets="/root/bootstrap/op-connect-token /root/bootstrap/1password-credentials.json /root/bootstrap/cloudflare-api-token"
+        secrets="/root/bootstrap/op-connect-token /root/bootstrap/1password-credentials.json /root/bootstrap/op-creds.b64 /root/bootstrap/cloudflare-api-token"
         shred -u $secrets 2>/dev/null || rm -f $secrets
         exit $rc
       EOT
