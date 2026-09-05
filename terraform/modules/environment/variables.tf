@@ -29,12 +29,6 @@ variable "location" {
   default     = "ash"
 }
 
-variable "datacenter" {
-  description = "Hetzner datacenter for the primary IP. Must sit inside var.location. Uses the datacenter/assignee_type form rather than the newer `location` attribute so the module also validates under hcloud 1.52.0, the version production already runs."
-  type        = string
-  default     = "ash-dc1"
-}
-
 variable "ssh_key_ids" {
   description = "IDs of existing hcloud_ssh_key resources to install on the server."
   type        = list(string)

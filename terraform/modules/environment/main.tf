@@ -9,12 +9,11 @@
 resource "hcloud_primary_ip" "protected" {
   count = var.manage_primary_ip && var.protect_primary_ip ? 1 : 0
 
-  name          = var.primary_ip_name
-  type          = "ipv4"
-  datacenter    = var.datacenter
-  assignee_type = "server"
-  auto_delete   = false
-  labels        = { environment = var.environment }
+  name        = var.primary_ip_name
+  type        = "ipv4"
+  location    = var.location
+  auto_delete = false
+  labels      = { environment = var.environment }
 
   lifecycle {
     prevent_destroy = true
@@ -24,12 +23,11 @@ resource "hcloud_primary_ip" "protected" {
 resource "hcloud_primary_ip" "ephemeral" {
   count = var.manage_primary_ip && !var.protect_primary_ip ? 1 : 0
 
-  name          = var.primary_ip_name
-  type          = "ipv4"
-  datacenter    = var.datacenter
-  assignee_type = "server"
-  auto_delete   = false
-  labels        = { environment = var.environment }
+  name        = var.primary_ip_name
+  type        = "ipv4"
+  location    = var.location
+  auto_delete = false
+  labels      = { environment = var.environment }
 }
 
 locals {

@@ -157,6 +157,32 @@ Plan: 0 to add, 0 to change, 0 to destroy.
 
 with every remaining action a `has moved to` line.
 
+### The provider upgrade is not optional
+
+hcloud **1.52.0**, the version production last ran, does not populate `location`
+(or `datacenter`) when it refreshes an existing server. The attribute reads back
+as `""` against a stored `"ash"`, and because `location` is ForceNew that alone
+plans a destroy-and-recreate of the production server:
+
+```
+# module.env.hcloud_server.this must be replaced
+    + location = "ash" # forces replacement
+Plan: 1 to add, 11 to change, 11 to destroy.
+```
+
+hcloud **1.68.0** refreshes it correctly:
+
+```
+Plan: 0 to add, 0 to change, 10 to destroy.    # the 10 are staging, removed in step 3
+```
+
+Both were verified by planning against real production state with a real refresh.
+So the restructure necessarily carries a provider upgrade — pinning to the older
+version is the more dangerous option, not the safer one.
+
+Note that `-refresh=false` hides this entirely. Any check of this migration must
+refresh.
+
 ### Reproducing that check offline
 
 `tf-preflight.sh plan` cannot drive a CLI plan against a remote-execution
@@ -169,7 +195,7 @@ terraform state pull > /tmp/prod.tfstate          # read-only
 
 # in a scratch copy of envs/production + modules/, with no backend block:
 cp /tmp/prod.tfstate terraform.tfstate
-terraform plan -refresh=false                      # no API calls
+terraform plan                                     # MUST refresh -- see above
 ```
 
 `ssh_public_key` must be byte-identical to what is in state, trailing newline
