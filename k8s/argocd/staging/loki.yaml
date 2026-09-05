@@ -22,6 +22,10 @@ spec:
             retention_period: 168h
           compactor:
             retention_enabled: true
+            # Required once retention is enabled, or Loki refuses to start with
+            # "invalid compactor config: compactor.delete-request-store should be
+            # configured when retention is enabled".
+            delete_request_store: filesystem
           storage:
             type: filesystem
           schemaConfig:

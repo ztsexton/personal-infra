@@ -13,6 +13,14 @@ spec:
     targetRevision: 8.8.2
     helm:
       values: |
+        # The chart defaults to RollingUpdate, which with an RWO volume starts the
+        # replacement pod while the old one still holds the claim. Two Grafanas
+        # then run sqlite migrations against the same file, which corrupts it --
+        # the visible symptom is a crash loop on
+        # "migration failed (id = update login and email fields to lowercase):
+        # no such column: uid".
+        deploymentStrategy:
+          type: Recreate
         persistence:
           enabled: true
           storageClassName: local-path
