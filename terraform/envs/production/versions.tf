@@ -1,28 +1,24 @@
-# Pinned exactly, and deliberately NOT to the version production last ran.
+# Exact versions live in .terraform.lock.hcl, which is committed and is what
+# actually governs a run. These constraints only set the floor.
 #
-# hcloud 1.52.0 does not populate `location` (or `datacenter`) when it refreshes
-# an existing server: the attribute reads back as "" against a stored "ash", and
-# because `location` is ForceNew that alone plans a destroy-and-recreate of the
-# production server. 1.68.0 refreshes it correctly and the plan comes back clean.
-# Verified by planning both versions with a real refresh against production state.
-#
-# So the restructure necessarily carries a provider upgrade. Relax to `~>` once
-# the migration has been applied.
+# Do not drop hcloud below 1.68: 1.52.0 does not populate `location` when it
+# refreshes an existing server, and since `location` is ForceNew that alone plans
+# a destroy-and-recreate of the production server.
 terraform {
   required_version = ">= 1.5.0, < 2.0.0"
 
   required_providers {
     hcloud = {
       source  = "hetznercloud/hcloud"
-      version = "= 1.68.0"
+      version = "~> 1.68"
     }
     cloudflare = {
       source  = "cloudflare/cloudflare"
-      version = "= 4.52.9"
+      version = "~> 4.52"
     }
     null = {
       source  = "hashicorp/null"
-      version = "= 3.3.1"
+      version = "~> 3.3"
     }
   }
 }

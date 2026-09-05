@@ -243,8 +243,12 @@ duration of the migration.
 
 ## Migration runbook (one-time)
 
-This layout replaces a single flat root that held production and staging in one
-Scalr state.
+**Status: done.** Production was migrated and applied; its state now holds only
+`module.env.*` addresses and the server moved rather than being recreated.
+
+Staging was destroyed by that apply rather than being split out of state first,
+which is why step 3 below reads as historical. The rebuild in step 5 is the
+remaining work, and it is now a *fresh* build rather than an adoption.
 
 ### 0. Confirm the workspace is still safe
 
@@ -312,30 +316,63 @@ Approve and merge only on an empty plan. `moved.tf` can be deleted afterwards.
 If you would rather gate from the CLI, switch the workspace to local execution
 mode first, then `./scripts/tf-preflight.sh plan` works directly.
 
-### 5. Rebuild staging
+### 5. Rebuild staging (current task)
 
-Staging is currently a bare k3s box with no Argo CD — the old
-`cloud-init.yaml.tmpl` never installed it. Rebuilding it from scratch is both the
-fix and the end-to-end test of the new bootstrap. It is entirely independent of
-production: separate state, separate root, its own server.
+Staging's server and its 9 DNS records were destroyed. **Its primary IP went with
+it**: the address was created implicitly with the server and so carried
+`auto_delete = true`, so `178.156.242.161` is no longer allocated to the account.
+
+That means the rebuild lands on a **new address**, and the two manifests that
+hardcode the old one have to be updated or Traefik's LoadBalancer will sit
+pending with every staging ingress down:
+
+- `k8s/argocd/staging/traefik.yaml` (`loadBalancerIP`)
+- `k8s/networking/metallb/staging/addresspool.yaml`
+
+Allocate the address first so Argo CD converges correctly on its first sync,
+rather than syncing against a stale IP and needing to self-heal:
 
 ```bash
 cd terraform/envs/staging
 cp terraform.tfvars.example terraform.tfvars && $EDITOR terraform.tfvars
 terraform init
 
-# Keep 178.156.242.161 so the staging manifests stay valid
-terraform import 'module.env.hcloud_primary_ip.protected[0]' <STAGING_PRIMARY_IP_ID>
-terraform apply -target='module.env.hcloud_primary_ip.protected[0]'   # sets auto_delete=false
+# 1. allocate just the primary IP (protect_primary_ip = true, so it now survives
+#    any future destroy of the server)
+terraform apply -target='module.env.hcloud_primary_ip.protected[0]'
+NEW_IP=$(terraform output -raw ipv4_address)
 
-# Import the existing DNS records
-./../../scripts/tf-migration-ids.sh dns-imports    # prints the commands
+# 2. point the manifests at it, then commit and push -- Argo CD applies these
+cd ../../..
+./scripts/set-env-ip.sh staging "$NEW_IP"
+git add k8s && git commit -m "Point staging manifests at rebuilt IP" && git push
 
-# Delete the old staging server. The primary IP survives because auto_delete is
-# now false. Then:
+# 3. build the server and run the bootstrap
+cd terraform/envs/staging
 terraform apply
 ```
 
-`terraform apply` finishes only once Argo CD is installed and the root
-Application is applied. If the cluster does not come up, the apply fails — the
-old bootstrap reported success on a broken cluster.
+`terraform apply` returns only once Argo CD is installed and the root Application
+is applied; if the cluster does not come up, the apply fails.
+
+Then check it:
+
+```bash
+eval "$(terraform output -raw kubeconfig_command)"
+kubectl --kubeconfig kubeconfig-staging.yaml -n argocd get applications
+kubectl --kubeconfig kubeconfig-staging.yaml -n onepassword get pods
+```
+
+### Protect the production address
+
+Production's primary IP still has `auto_delete = true` — the same setting that
+lost staging's address. Production does not manage its IP through Terraform
+(`manage_primary_ip = false`), so this is set out of band:
+
+```bash
+./scripts/hcloud-primary-ip.sh list
+./scripts/hcloud-primary-ip.sh protect 178.156.205.252
+```
+
+It does not touch the server, and it means a future rebuild of production keeps
+its address — and every production DNS record and hardcoded manifest with it.

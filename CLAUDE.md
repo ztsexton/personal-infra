@@ -131,6 +131,7 @@ Key variables:
 - `hcloud_token`, `ssh_public_key`, `ssh_private_key` — Hetzner access
 - `k3s_token` — k3s cluster join token
 - `argocd_admin_password_bcrypt` — ArgoCD admin password (bcrypt hash)
+- `ssh_private_key` — used by Terraform to run the cluster bootstrap over SSH
 - `cloudflare_api_token` — Cloudflare DNS management
 - `cloudflare_zone_id_*` — Zone IDs for each domain
 - `onepassword_connect_token`, `onepassword_credentials_json` — 1Password Connect
@@ -202,6 +203,14 @@ Apps just need to log to stdout (JSON preferred via pino). No app-side log shipp
 
 - The k3s built-in Traefik is disabled — Traefik is managed via Helm through ArgoCD
 - MetalLB binds each server's external IP as the LoadBalancer IP (per-environment config)
+- **That IP is hardcoded in two places per environment** — `k8s/argocd/<env>/traefik.yaml`
+  (`loadBalancerIP`) and `k8s/networking/metallb/<env>/addresspool.yaml`. Use
+  `./scripts/set-env-ip.sh <env> <ip>` to change both; missing one leaves Traefik's
+  LoadBalancer pending with every ingress down
+- **Hetzner primary IPs must have `auto_delete = false`** or destroying a server
+  releases its address, invalidating those manifests and every DNS record. Staging
+  lost its address this way. Check with `./scripts/hcloud-primary-ip.sh list`;
+  environments built by `modules/environment` manage the IP as its own resource
 - All TLS certificates are per-domain for independent renewal
 - Zot registry has a 2GB upload limit configured via Traefik middleware
 - ArgoCD runs in insecure mode (TLS terminated at Traefik)
