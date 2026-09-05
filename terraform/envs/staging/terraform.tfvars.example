@@ -1,18 +1,14 @@
 # Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+#
+# Only the Hetzner and Cloudflare values are required: this root generates its own
+# SSH keypair, and scripts/staging.sh generates k3s_token and the Argo CD password
+# on first run.
 # Every value here already exists in the Scalr workspace or in 1Password; pull
 # them from there rather than inventing new ones.
 
 hcloud_token         = ""
 cloudflare_api_token = ""
 
-# Private half of the "personal_hcloud_ssh_key" Hetzner key. Use a heredoc so the
-# newlines survive:
-#   ssh_private_key = <<-EOT
-#     -----BEGIN OPENSSH PRIVATE KEY-----
-#     ...
-#     -----END OPENSSH PRIVATE KEY-----
-#   EOT
-ssh_private_key = ""
 
 k3s_token = ""
 

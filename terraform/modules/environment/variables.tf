@@ -125,6 +125,13 @@ variable "onepassword_credentials_json" {
   default     = ""
 }
 
+variable "cloudflare_api_token" {
+  description = "Cloudflare token with DNS edit rights. Written straight into the cert-manager cloudflare-api-token secret so an environment can issue certificates without waiting on the 1Password bootstrap. Empty skips it, and no TLS certificate will be issued."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 # --- DNS ----------------------------------------------------------------------
 
 variable "cloudflare_zone_ids" {

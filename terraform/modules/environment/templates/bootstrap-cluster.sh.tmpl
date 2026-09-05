@@ -45,6 +45,24 @@ log "         onepassword-operator will stay Degraded and every OnePasswordItem"
 log "         backed secret (cloudflare-api-token, zot-auth, ...) will be missing."
 %{ endif ~}
 
+# --- 1b. cert-manager Cloudflare token ----------------------------------------
+# cert-manager solves the DNS01 challenge with this secret, and the ClusterIssuers
+# reference it by name. It is normally synced from 1Password, which makes TLS for
+# a whole environment depend on the 1Password bootstrap having succeeded. The
+# token is already a variable here, so it is written directly and the environment
+# can issue certificates on its own.
+#
+# If the 1Password operator does start later it reconciles the same secret with
+# the same value. Argo CD does not prune it: it is not one of Argo CD's resources.
+%{ if bootstrap_cloudflare_token ~}
+log "Creating the cert-manager Cloudflare API token secret"
+kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
+kubectl -n cert-manager create secret generic cloudflare-api-token   --from-file=api-token="$BOOTSTRAP_DIR/cloudflare-api-token"   --dry-run=client -o yaml | kubectl apply -f -
+%{ else ~}
+log "WARNING: no Cloudflare token supplied; cert-manager cannot solve DNS01 and"
+log "         no TLS certificate will be issued."
+%{ endif ~}
+
 # --- 2. Argo CD ---------------------------------------------------------------
 log "Installing Argo CD (argo-cd chart ${argocd_chart_version})"
 helm repo add argo https://argoproj.github.io/argo-helm >/dev/null

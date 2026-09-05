@@ -6,9 +6,16 @@ locals {
   }
 }
 
-# Owned by envs/production; Hetzner rejects a second key with the same fingerprint.
-data "hcloud_ssh_key" "default" {
-  name = "personal_hcloud_ssh_key"
+# This environment generates and owns its own keypair, so bringing it up needs no
+# operator-supplied secret. The private half lives in this root's local state and
+# is what Terraform uses to run the cluster bootstrap over SSH.
+resource "tls_private_key" "this" {
+  algorithm = "ED25519"
+}
+
+resource "hcloud_ssh_key" "this" {
+  name       = "personal-staging-k3s"
+  public_key = tls_private_key.this.public_key_openssh
 }
 
 module "env" {
@@ -20,10 +27,11 @@ module "env" {
   server_type     = "cpx21" # Shared 3 AMD CPU / 4GB / 80GB
   location        = "ash"
   primary_ip_name = "personal-staging-ipv4"
-  ssh_key_ids     = [data.hcloud_ssh_key.default.id]
-  ssh_private_key = var.ssh_private_key
+  ssh_key_ids     = [hcloud_ssh_key.this.id]
+  ssh_private_key = tls_private_key.this.private_key_openssh
 
-  k3s_token = var.k3s_token
+  k3s_token            = var.k3s_token
+  cloudflare_api_token = var.cloudflare_api_token
 
   argocd_admin_password_bcrypt = var.argocd_admin_password_bcrypt
   git_root_app_path            = "k8s/argocd/staging"

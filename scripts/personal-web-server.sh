@@ -11,11 +11,17 @@ set -euo pipefail
 
 STATE_FILE="terraform/envs/staging/terraform.tfstate"
 SERVER_IP=""
-VPS_IP_OVERRIDE="178.156.242.161"
+# Staging was rebuilt onto a new address; there is no stable fallback to hardcode
+# here any more. The IP comes from staging's local Terraform state, or set
+# VPS_IP_OVERRIDE yourself:
+#   VPS_IP_OVERRIDE=$(cd terraform/envs/staging && terraform output -raw ipv4_address)
+VPS_IP_OVERRIDE="${VPS_IP_OVERRIDE:-}"
 AUTO_HOSTKEY_CLEAN=1
 
-if [ -f "$STATE_FILE" ]; then
-  SERVER_IP=$(grep -oE '"vps_ip"[^\n]*' "$STATE_FILE" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1 || true)
+# Ask Terraform directly: the output is `ipv4_address`, and the old grep looked
+# for `vps_ip`, an output name that no longer exists.
+if [ -f "$STATE_FILE" ] && command -v terraform >/dev/null 2>&1; then
+  SERVER_IP=$(terraform -chdir="$(dirname "$STATE_FILE")" output -raw ipv4_address 2>/dev/null || true)
 fi
 
 SERVER_IP=${SERVER_IP:-${VPS_IP_OVERRIDE:-}}
