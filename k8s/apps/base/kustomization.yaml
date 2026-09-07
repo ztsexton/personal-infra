@@ -29,7 +29,3 @@ resources:
   # vigilo
   - vigilo/deployment.yaml
   - vigilo/service.yaml
-  # zot
-  - zot/deployment.yaml
-  - zot/service.yaml
-  - zot/onepassword-secret.yaml

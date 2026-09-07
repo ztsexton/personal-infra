@@ -53,18 +53,19 @@ To build and push a new version of your app to the Zot registry:
 
 ```bash
 # Build the image
-docker build -t zot.zachsexton.com/ballroom-competition-web:latest .
+docker build -t ghcr.io/ztsexton/ballroom-competition-web:latest .
 
 # Login to Zot
-docker login zot.zachsexton.com
+docker login ghcr.io
 # Username: admin
 # Password: (your password)
 
 # Push the image
-docker push zot.zachsexton.com/ballroom-competition-web:latest
+docker push ghcr.io/ztsexton/ballroom-competition-web:latest
 ```
 
-Or use the GitHub Actions workflow from `k8s/apps/zot/example-github-action.yml`.
+Normally you do not push by hand: .github/workflows/docker-push.yaml in the
+app repo publishes on every merge and writes the tag back to this repo.
 
 ## Updating the App
 
@@ -88,7 +89,7 @@ Or update the image tag in `deployment.yaml` to use a specific version instead o
 ## Configuration
 
 - **Path**: `/` (root)
-- **Image**: `zot.zachsexton.com/ballroom-competition-web:latest`
+- **Image**: `ghcr.io/ztsexton/ballroom-competition-web:master-<sha>`
 - **Namespace**: `web`
 - **TLS**: Uses petfoodfinder-app-tls certificate
 - **Resources**: 128Mi-256Mi memory, 100m-500m CPU

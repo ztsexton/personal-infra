@@ -10,4 +10,3 @@ resources:
   - ingress/petfoodfinder-ingress.yaml
   - ingress/spotifybutler-ingress.yaml
   - ingress/vigilo-ingress.yaml
-  - ingress/zot-ingress.yaml

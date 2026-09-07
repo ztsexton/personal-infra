@@ -50,7 +50,6 @@ module "env" {
     zachsexton_spotifybutler_staging = { zone = "zachsexton", name = "spotifybutler-staging" }
     zachsexton_grafana_staging       = { zone = "zachsexton", name = "grafana-staging" }
     zachsexton_syllabus_staging      = { zone = "zachsexton", name = "syllabus-staging" }
-    zachsexton_zot_staging           = { zone = "zachsexton", name = "zot-staging" }
 
     petfoodfinder_staging = { zone = "petfoodfinder", name = "staging" }
   }

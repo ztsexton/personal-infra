@@ -67,7 +67,6 @@ module "env" {
     zachsexton_spotifybutler = { zone = "zachsexton", name = "spotifybutler" }
     zachsexton_grafana       = { zone = "zachsexton", name = "grafana" }
     zachsexton_syllabus      = { zone = "zachsexton", name = "syllabus" }
-    zachsexton_zot           = { zone = "zachsexton", name = "zot" }
 
     petfoodfinder_root = { zone = "petfoodfinder", name = "@" }
     petfoodfinder_www  = { zone = "petfoodfinder", name = "www" }
