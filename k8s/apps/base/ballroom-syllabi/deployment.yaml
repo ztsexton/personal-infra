@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: ghcr.io/ztsexton/ballroom-syllabi:main-389428c
+          image: zot.zachsexton.com/ballroom-syllabi:main-389428c
           imagePullPolicy: Always
           env:
             - name: PORT
