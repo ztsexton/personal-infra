@@ -21,8 +21,11 @@ export PATH="$HOME/bin:$PATH"
 
 ITEM="${OP_ITEM:-zot-docker-config}"
 PAT_ITEM="${OP_PAT_ITEM:-Personal Infra PAT Github Classic}"
+# Only vaults that a OnePasswordItem CR actually references are worth editing.
+# Every itemPath in k8s/ points at "Kubernetes"; Kubernetes-Staging exists but
+# nothing reads it, so editing a copy there changes nothing in any cluster.
 VAULTS=("${@:2}")
-[ "${#VAULTS[@]}" -gt 0 ] || VAULTS=(Kubernetes Kubernetes-Staging)
+[ "${#VAULTS[@]}" -gt 0 ] || VAULTS=(Kubernetes)
 FIELD='.dockerconfigjson'
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 PY="${PY:-$REPO/.venv/bin/python}"
@@ -84,8 +87,13 @@ cmd_add_ghcr() {
   for v in "${VAULTS[@]}"; do
     step "updating $ITEM in vault '$v'"
     local current merged
+    if ! op item get "$ITEM" --vault "$v" >/dev/null 2>&1; then
+      warn "  '$ITEM' does not exist in vault '$v' -- skipping"
+      continue
+    fi
     current=$(get_field "$v")
-    [ -n "$current" ] || die "no $FIELD field in $ITEM ($v)"
+    [ -n "$current" ] || die "'$ITEM' in '$v' has no $FIELD field"
+    printf '  before: '; echo "$current" | registries_in
 
     merged=$(OP_USER="$user" OP_PAT="$pat" "$PY" -c '
 import sys, json, base64, os
