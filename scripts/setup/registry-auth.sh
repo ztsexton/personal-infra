@@ -44,8 +44,19 @@ need_session() {
   op whoami >/dev/null 2>&1 || die "no active 1Password session in this shell -- run: eval \$(op signin)"
 }
 
+# The field sits inside a section, and `--fields` may not match an unqualified
+# name in that case. Read the whole item and pick the field out of the JSON
+# instead, which does not depend on how op parses field addresses.
 get_field() { # vault -> the raw .dockerconfigjson
-  op item get "$ITEM" --vault "$1" --fields "$FIELD" --reveal 2>/dev/null | tr -d '\n'
+  op item get "$ITEM" --vault "$1" --format json 2>/dev/null | "$PY" -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for f in d.get("fields", []):
+    if f.get("label") == ".dockerconfigjson":
+        sys.stdout.write(f.get("value") or ""); break'
 }
 
 registries_in() { # json on stdin
@@ -161,7 +172,52 @@ cmd_verify() {
     || die "zot-registry-credentials not found -- is the OnePasswordItem CR on master yet?"
 }
 
+# Every op call, run one at a time with stderr shown and exit codes printed.
+# The normal path suppresses stderr to avoid leaking values into logs, which also
+# hides the reason a call fails -- this is the escape hatch for that.
+cmd_doctor() {
+  need_op
+  local v="${1:-Kubernetes}"
+  echo "  op version : $(op --version 2>&1)"
+  echo "  vault      : $v"
+  echo "  item       : $ITEM"
+  echo
+
+  echo "[1] op whoami"
+  op whoami; echo "    exit=$?"
+  echo
+
+  echo "[2] op item get '$ITEM' --vault '$v'  (does the item resolve at all)"
+  op item get "$ITEM" --vault "$v" --format json >/dev/null; echo "    exit=$?"
+  echo
+
+  echo "[3] the field, addressed unqualified as '$FIELD'"
+  op item get "$ITEM" --vault "$v" --fields "$FIELD" --reveal >/dev/null; echo "    exit=$?"
+  echo
+
+  echo "[4] the field, addressed with its section"
+  local target
+  target=$(op item get "$ITEM" --vault "$v" --format json 2>/dev/null | "$PY" -c '
+import sys, json
+d = json.load(sys.stdin)
+for f in d.get("fields", []):
+    if f.get("label") == ".dockerconfigjson":
+        sec = (f.get("section") or {}).get("id")
+        print("%s.%s" % (sec, f["label"]) if sec else f["label"]); break')
+  echo "    resolved address: ${target:-<none>}"
+  if [ -n "$target" ]; then
+    op item get "$ITEM" --vault "$v" --fields "$target" --reveal >/dev/null; echo "    exit=$?"
+  fi
+  echo
+
+  echo "[5] the PAT item"
+  op item get "$PAT_ITEM" --vault "$v" --fields password --reveal >/dev/null; echo "    exit=$?"
+  echo
+  echo "  Values are never printed. Non-zero above is the failing call."
+}
+
 case "${1:-}" in
+  doctor)   shift; cmd_doctor "$@" ;;
   show)     cmd_show ;;
   add-ghcr) cmd_add_ghcr ;;
   verify)   cmd_verify ;;
@@ -169,11 +225,12 @@ case "${1:-}" in
     cat >&2 <<EOF
 usage: $0 <command> [vault...]
 
+  doctor     run each op call separately, showing exit codes and errors
   show       which registries each vault's copy currently covers
   add-ghcr   add a ghcr.io entry, preserving what is already there
   verify     what the staging cluster actually has
 
-Vaults default to: Kubernetes Kubernetes-Staging
+Vaults default to: Kubernetes (the only vault any OnePasswordItem references)
 Needs a 1Password session in this shell: eval \$(op signin)
 EOF
     exit 1 ;;
