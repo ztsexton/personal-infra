@@ -28,7 +28,9 @@ Prefer extending an existing script over adding a near-duplicate.
 
 ## Architecture
 
-- **Servers**: Hetzner Cloud VPS — production (ccx23 dedicated CPU) + staging (cpx21 shared CPU), both in Ashburn VA
+- **Servers**: Hetzner Cloud VPS — production (ccx23 dedicated CPU, Ashburn VA) + staging (cx23 shared CPU, Falkenstein DE).
+  Hetzner's June 2026 increase fell almost entirely on the US locations, so staging runs in the EU: the same class of box is
+  $6.49/mo in `fsn1` against $37.49 in `ash`. Production stays in the US for latency; relocating it would save $1.50/mo.
 - **Kubernetes**: k3s (single-node per environment, built-in Traefik disabled)
 - **GitOps**: ArgoCD with app-of-apps pattern (separate root per environment)
 - **Ingress**: Traefik (Helm-managed, 2 replicas, LoadBalancer via MetalLB)
@@ -171,6 +173,23 @@ Edit the `image:` field in the app's `deployment.yaml` under `k8s/apps/base/<app
 ./scripts/staging.sh down     # destroy the server, keep the address (~90% saving)
 ./scripts/staging.sh status
 ```
+
+### Move staging to another Hetzner location
+
+Edit `location`, `server_type` and `network_zone` in `terraform/envs/staging/main.tf`,
+then:
+
+```bash
+./scripts/staging.sh relocate check   # report only
+./scripts/staging.sh relocate
+```
+
+A primary IP cannot change region and there is no API to move one, so this is a
+release-and-rebuild rather than an edit: the address changes, and with it the two
+manifests that hardcode it and every staging DNS record. `up` cannot do this on
+its own — `prevent_destroy` on the address stops the plan — which is why it is a
+separate subcommand. `relocate` also checks that the server type is actually
+offered in the target location before releasing anything (`cx23` is EU-only).
 
 Repeatable: `down` keeps the primary IP, so the IP hardcoded in the staging
 manifests stays valid and `up` needs no manual step. Only the Hetzner and

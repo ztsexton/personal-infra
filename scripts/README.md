@@ -11,7 +11,7 @@ elsewhere.
 
 | Script | What it does |
 | ------ | ------------ |
-| `staging.sh` | The lifecycle. `up`, `down`, `status`, `verify`, `ssh`, `kubeconfig`, `nuke` |
+| `staging.sh` | The lifecycle. `up`, `down`, `relocate`, `status`, `verify`, `ssh`, `kubeconfig`, `nuke` |
 | `certs.sh` | `status`, `unstick`, `watch` — certificates and stuck ACME challenges |
 | `secrets.sh` | `status`, `sources`, `resync` — what exists, where it comes from, what is orphaned |
 | `personal-prod-server.sh` | SSH to production |

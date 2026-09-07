@@ -24,8 +24,9 @@ module "env" {
   environment = "staging"
 
   server_name     = "personal-website-vps-k3s"
-  server_type     = "cpx21" # Shared 3 AMD CPU / 4GB / 80GB
-  location        = "ash"
+  server_type     = "cx23" # Shared 2 Intel CPU / 4GB / 40GB
+  location        = "fsn1"
+  network_zone    = "eu-central"
   primary_ip_name = "personal-staging-ipv4"
   ssh_key_ids     = [hcloud_ssh_key.this.id]
   ssh_private_key = tls_private_key.this.private_key_openssh

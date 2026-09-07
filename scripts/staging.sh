@@ -7,6 +7,7 @@
 #   ./scripts/staging.sh verify    # every configured URL, with real TLS validation
 #   ./scripts/staging.sh kubeconfig
 #   ./scripts/staging.sh ssh       # shell on the staging box
+#   ./scripts/staging.sh relocate  # move to another Hetzner location (new address)
 #   ./scripts/staging.sh nuke      # release the address too (rarely what you want)
 #
 # `down` deliberately keeps the primary IP. The server is ~EUR 8/month and an
@@ -231,18 +232,188 @@ cmd_nuke() {
   [ "$reply" = "nuke" ] || die "aborted"
 
   tf destroy -input=false -auto-approve -target="$SERVER"
+  release_address
+}
 
-  local id
+hcloud_token() { grep -oP '^hcloud_token\s*=\s*"\K[^"]+' "$TFVARS"; }
+
+state_ip_location() {
+  tf state show "$IP_ADDR" 2>/dev/null | grep -oP '^\s*location\s*=\s*"\K[^"]+' || true
+}
+
+# Drop the address from state and release it through the API.
+#
+# prevent_destroy is a literal in the shared module and cannot be lifted for one
+# environment from a script, so terraform can never be the thing that deletes
+# this resource. Removing it from state first means a failed API call leaves an
+# orphan that still bills, so the deletion is verified by reading the address
+# back rather than trusting curl's exit code.
+release_address() {
+  local id ip
   id=$(tf state show "$IP_ADDR" 2>/dev/null | grep -oP '^\s*id\s*=\s*"\K[0-9]+' || true)
+  ip=$(current_ip)
   [ -n "$id" ] || die "could not determine the primary IP id"
-  # prevent_destroy cannot be lifted from a script, so the address is dropped
-  # from state and released through the API.
+
   tf state rm "$IP_ADDR" >/dev/null
-  local token
-  token=$(grep -oP '^hcloud_token\s*=\s*"\K[^"]+' "$TFVARS")
-  curl -sSf -X DELETE -H "Authorization: Bearer $token" \
-    "https://api.hetzner.cloud/v1/primary_ips/$id" >/dev/null
-  green "address released and removed from state"
+  local token; token=$(hcloud_token)
+  curl -sS -X DELETE -H "Authorization: Bearer $token" \
+    "https://api.hetzner.cloud/v1/primary_ips/$id" >/dev/null || true
+
+  # Read back. A 404 here is the success case.
+  local code
+  code=$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $token" \
+    "https://api.hetzner.cloud/v1/primary_ips/$id")
+  if [ "$code" = "404" ]; then
+    green "released $ip (id $id) and removed it from state"
+  else
+    red "primary IP $id still exists at Hetzner (HTTP $code) but is no longer in"
+    red "state, so terraform will not clean it up. Delete it by hand:"
+    red "  ./scripts/setup/hcloud-primary-ip.sh list"
+    exit 1
+  fi
+}
+
+# ---------------------------------------------------------------------------
+# Moving staging to another Hetzner location.
+#
+# Three things here are pinned to a region and none of them can be moved in
+# place:
+#
+#   primary IP  Hetzner allocates it in a location and offers no API to move it.
+#               A region change therefore means a NEW ADDRESS, which is why this
+#               cannot be folded into `up`: the two manifests that hardcode the
+#               address have to be rewritten and pushed before Argo CD syncs.
+#   subnet      network_zone is ForceNew. (The network itself is global.)
+#   server      location is ForceNew.
+#
+# So relocating is a release-and-rebuild, not an edit. That is only cheap
+# because staging is already built to be destroyed -- `up` is a single command
+# and nothing on the box is stateful that git does not already describe.
+#
+# Edit location/server_type/network_zone in terraform/envs/staging/main.tf
+# first, then run this. `relocate check` reports without changing anything.
+
+zone_for_location() {
+  case "$1" in
+    fsn1|nbg1|hel1) echo eu-central ;;
+    ash)            echo us-east ;;
+    hil)            echo us-west ;;
+    sin)            echo ap-southeast ;;
+    *)              echo "" ;;
+  esac
+}
+
+tf_setting() { # key -- as literally written in the staging module block
+  grep -oP "^\s*$1\s*=\s*\"\K[^\"]+" "$TF_DIR/main.tf" | head -1
+}
+
+# Not every server type exists in every location -- cx23 is EU-only, and asking
+# for one in ash fails at apply time after the address has already been
+# released. Ask Hetzner instead of assuming.
+type_in_location() { # server_type location
+  HTOKEN="$(hcloud_token)" ST="$1" LOC="$2" python3 - <<'PY'
+import json, os, sys, urllib.request
+req = urllib.request.Request("https://api.hetzner.cloud/v1/server_types?per_page=100",
+                             headers={"Authorization": "Bearer " + os.environ["HTOKEN"]})
+want, loc = os.environ["ST"], os.environ["LOC"]
+for st in json.load(urllib.request.urlopen(req))["server_types"]:
+    if st["name"] != want:
+        continue
+    prices = {p["location"]: float(p["price_monthly"]["gross"]) for p in st["prices"]}
+    if loc in prices:
+        print("ok|%d cores / %gGB / %dGB %s|$%.2f/mo"
+              % (st["cores"], st["memory"], st["disk"], st["cpu_type"], prices[loc]))
+    else:
+        print("unavailable|%s is not offered in %s|only: %s"
+              % (want, loc, ", ".join(sorted(prices))))
+    sys.exit(0)
+print("nosuchtype|no server type named %s|" % want)
+PY
+}
+
+cmd_relocate() {
+  local check=""
+  [ "${1:-}" = "check" ] && check=1
+  [ -d "$TF_DIR/.terraform" ] || tf init -input=false >/dev/null
+
+  local want_loc want_type want_zone have_loc
+  want_loc=$(tf_setting location)
+  want_type=$(tf_setting server_type)
+  want_zone=$(tf_setting network_zone)
+  have_loc=$(state_ip_location)
+
+  [ -n "$want_loc" ]  || die "no location set in $TF_DIR/main.tf"
+  [ -n "$want_type" ] || die "no server_type set in $TF_DIR/main.tf"
+
+  # A location/network_zone mismatch is accepted by terraform and then fails
+  # deep in the apply, after the address is gone.
+  local expect_zone; expect_zone=$(zone_for_location "$want_loc")
+  [ -n "$expect_zone" ] || die "unknown location '$want_loc'"
+  if [ -n "$want_zone" ] && [ "$want_zone" != "$expect_zone" ]; then
+    die "network_zone is '$want_zone' but $want_loc is in '$expect_zone' -- fix $TF_DIR/main.tf"
+  fi
+  if [ -z "$want_zone" ]; then
+    die "set network_zone = \"$expect_zone\" in $TF_DIR/main.tf (it defaults to us-east)"
+  fi
+
+  local info status detail price
+  info=$(type_in_location "$want_type" "$want_loc")
+  IFS='|' read -r status detail price <<<"$info"
+  [ "$status" = "ok" ] || die "$detail${price:+ ($price)}"
+
+  step "target"
+  printf '  location     %s (network zone %s)\n' "$want_loc" "$want_zone"
+  printf '  server type  %-8s %s  %s\n' "$want_type" "$detail" "$price"
+
+  local have_ip; have_ip=$(current_ip)
+  step "current"
+  printf '  address      %s in %s\n' "${have_ip:-<none>}" "${have_loc:-<none>}"
+  if tf state list 2>/dev/null | grep -qx "$SERVER"; then
+    printf '  server       present\n'
+  else
+    printf '  server       DOWN\n'
+  fi
+
+  if [ "$have_loc" = "$want_loc" ]; then
+    echo
+    green "already in $want_loc -- nothing to relocate. Run: $0 up"
+    return 0
+  fi
+  # After a `nuke` there is no address to release, so there is nothing to
+  # relocate either -- `up` allocates straight into the configured location.
+  if [ -z "$have_loc" ]; then
+    echo
+    green "no address allocated, so nothing is pinned to the old region."
+    green "Run: $0 up   (it will allocate in $want_loc)"
+    return 0
+  fi
+
+  echo
+  step "what this does"
+  echo "  1. destroy the server, if one is up"
+  echo "  2. release ${have_ip:-the current address} -- a primary IP cannot change region"
+  echo "  3. allocate a new address in $want_loc"
+  echo "  4. rewrite the address in k8s/argocd/staging/traefik.yaml and the"
+  echo "     MetalLB pool, commit and push (Argo CD reads these from master)"
+  echo "  5. build the $want_type and run the bootstrap"
+  echo
+  warn "  every staging DNS record moves to the new address with it."
+
+  [ -z "$check" ] || { echo; green "check only -- nothing changed"; return 0; }
+
+  echo
+  read -r -p "Type 'relocate' to continue: " reply
+  [ "$reply" = "relocate" ] || die "aborted"
+
+  if tf state list 2>/dev/null | grep -qx "$SERVER"; then
+    step "destroying the server in $have_loc"
+    tf destroy -input=false -auto-approve -target="$SERVER"
+  fi
+
+  step "releasing the $have_loc address"
+  release_address
+
+  cmd_up
 }
 
 cmd_status() {
@@ -395,9 +566,10 @@ case "${1:-}" in
   up)         cmd_up ;;
   down)       cmd_down ;;
   nuke)       cmd_nuke ;;
+  relocate)   shift; cmd_relocate "$@" ;;
   status)     cmd_status ;;
   verify)     cmd_verify ;;
   kubeconfig) cmd_kubeconfig ;;
   ssh)        shift; cmd_ssh "$@" ;;
-  *) echo "usage: $0 {up|down|status|verify|kubeconfig|ssh|nuke}" >&2; exit 1 ;;
+  *) echo "usage: $0 {up|down|relocate|status|verify|kubeconfig|ssh|nuke}" >&2; exit 1 ;;
 esac
