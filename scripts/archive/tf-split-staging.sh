@@ -10,12 +10,12 @@
 # old flat root that declares staging -- and the next plan wants to recreate
 # every one of these as a duplicate.
 #
-#   ./scripts/tf-split-staging.sh check     # what is in state now
-#   ./scripts/tf-split-staging.sh backup    # pull a copy of the state first
-#   ./scripts/tf-split-staging.sh remove    # do it (prompts, backs up first)
+#   ./scripts/archive/tf-split-staging.sh check     # what is in state now
+#   ./scripts/archive/tf-split-staging.sh backup    # pull a copy of the state first
+#   ./scripts/archive/tf-split-staging.sh remove    # do it (prompts, backs up first)
 set -euo pipefail
 
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 PROD_DIR="$REPO/terraform/envs/production"
 BACKUP_DIR="$REPO/.tfstate-backups"
 

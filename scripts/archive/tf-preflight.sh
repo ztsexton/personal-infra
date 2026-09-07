@@ -7,10 +7,10 @@
 # the destination and DESTROY the untracked original. That is the one way this
 # change could take production down, and it is entirely detectable before apply.
 #
-#   ./scripts/tf-preflight.sh workspace   # Scalr workspace settings that matter
-#   ./scripts/tf-preflight.sh addresses   # what is really in state right now
-#   ./scripts/tf-preflight.sh moved       # do the moved blocks line up with it
-#   ./scripts/tf-preflight.sh plan        # hard gate: refuse anything but "no changes"
+#   ./scripts/archive/tf-preflight.sh workspace   # Scalr workspace settings that matter
+#   ./scripts/archive/tf-preflight.sh addresses   # what is really in state right now
+#   ./scripts/archive/tf-preflight.sh moved       # do the moved blocks line up with it
+#   ./scripts/archive/tf-preflight.sh plan        # hard gate: refuse anything but "no changes"
 #
 # `plan` is the gate that matters. It exits non-zero unless the plan is empty.
 #
@@ -21,7 +21,7 @@
 # (the workspace has dry-runs-enabled), which checks out the whole repo.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 PROD_DIR="$ROOT/terraform/envs/production"
 
 red()   { printf '\033[0;31m%s\033[0m\n' "$*"; }

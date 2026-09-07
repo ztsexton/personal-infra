@@ -7,14 +7,14 @@
 # (MetalLB address pools, Traefik loadBalancerIP) is one `terraform destroy` away
 # from being wrong.
 #
-#   ./scripts/hcloud-primary-ip.sh list
-#   ./scripts/hcloud-primary-ip.sh protect <ip-or-id>     # auto_delete = false
+#   ./scripts/setup/hcloud-primary-ip.sh list
+#   ./scripts/setup/hcloud-primary-ip.sh protect <ip-or-id>     # auto_delete = false
 #
 # Auth: HCLOUD_TOKEN, else the hcloud_token in terraform/terraform.tfvars.
 set -euo pipefail
 
 API="https://api.hetzner.cloud/v1"
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 
 red()   { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }

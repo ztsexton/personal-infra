@@ -5,10 +5,10 @@
 # its payload from the live object so no field is silently dropped, and re-reads
 # afterwards to show exactly what changed.
 #
-#   ./scripts/scalr-workspace.sh show
-#   ./scripts/scalr-workspace.sh set-working-dir terraform/envs/production
-#   ./scripts/scalr-workspace.sh set-trigger-prefixes terraform/envs/production terraform/modules
-#   ./scripts/scalr-workspace.sh restore .scalr-backups/ws.<timestamp>.json
+#   ./scripts/setup/scalr-workspace.sh show
+#   ./scripts/setup/scalr-workspace.sh set-working-dir terraform/envs/production
+#   ./scripts/setup/scalr-workspace.sh set-trigger-prefixes terraform/envs/production terraform/modules
+#   ./scripts/setup/scalr-workspace.sh restore .scalr-backups/ws.<timestamp>.json
 #
 # Auth: SCALR_TOKEN, else the token terraform login wrote to
 #       ~/.terraform.d/credentials.tfrc.json
@@ -19,7 +19,7 @@ SCALR_HOST="${SCALR_HOST:-zsexton.scalr.io}"
 WS="${SCALR_WORKSPACE_ID:-ws-v0oqbtbmqk0da80vn}"
 API="https://$SCALR_HOST/api/iacp/v3/workspaces/$WS"
 
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 BACKUP_DIR="$REPO/.scalr-backups"
 
 red()   { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }

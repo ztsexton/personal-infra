@@ -35,7 +35,7 @@ This fetches kubeconfig, installs cert-manager, seeds Cloudflare secret.
 
 ### 4. Debugging Argo CD
 ```bash
-./scripts/diagnose_argo.sh  # Checks pods, CRDs, logs
+./scripts/archive/diagnose_argo.sh  # Checks pods, CRDs, logs
 kubectl get applications -n argocd
 kubectl describe app <app-name> -n argocd
 ```

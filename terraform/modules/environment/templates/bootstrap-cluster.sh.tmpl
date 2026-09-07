@@ -36,8 +36,16 @@ kubectl -n onepassword create secret generic onepassword-token \
   --from-literal=token="$(cat "$BOOTSTRAP_DIR/op-connect-token")" \
   --dry-run=client -o yaml | kubectl apply -f -
 
+# Connect does not read this file as JSON: it base64-decodes it first, so the
+# secret has to hold BASE64-ENCODED JSON. Handing it the raw file produces
+#   LoadLocalAuthV2 failed to credentialsDataFromBase64,
+#   illegal base64 data at input byte 0
+# and connect-sync then retries forever while every OnePasswordItem fails with
+# "failed to GetVaultsByTitle ... status 500: failed to initiate".
+base64 -w0 "$BOOTSTRAP_DIR/1password-credentials.json" > "$BOOTSTRAP_DIR/op-creds.b64"
+
 kubectl -n onepassword create secret generic op-credentials \
-  --from-file=1password-credentials.json="$BOOTSTRAP_DIR/1password-credentials.json" \
+  --from-file=1password-credentials.json="$BOOTSTRAP_DIR/op-creds.b64" \
   --dry-run=client -o yaml | kubectl apply -f -
 %{ else ~}
 log "WARNING: 1Password Connect credentials not supplied; skipping."
@@ -52,16 +60,34 @@ log "         backed secret (cloudflare-api-token, zot-auth, ...) will be missin
 # token is already a variable here, so it is written directly and the environment
 # can issue certificates on its own.
 #
-# If the 1Password operator does start later it reconciles the same secret with
-# the same value. Argo CD does not prune it: it is not one of Argo CD's resources.
+# Created ONLY IF ABSENT. There is also a OnePasswordItem of the same name, and
+# production -- which never runs this bootstrap -- depends on that one. Two
+# writers applying over each other is what removed this secret mid-rebuild and
+# silently broke every certificate, so this never overwrites: it exists purely so
+# a cold cluster can issue certificates before the operator reaches sync wave 0.
 %{ if bootstrap_cloudflare_token ~}
-log "Creating the cert-manager Cloudflare API token secret"
 kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
-kubectl -n cert-manager create secret generic cloudflare-api-token   --from-file=api-token="$BOOTSTRAP_DIR/cloudflare-api-token"   --dry-run=client -o yaml | kubectl apply -f -
+if kubectl -n cert-manager get secret cloudflare-api-token >/dev/null 2>&1; then
+  log "cert-manager Cloudflare token already present; leaving it to its owner"
+else
+  log "Creating the cert-manager Cloudflare API token secret (cold-start fallback)"
+  kubectl -n cert-manager create secret generic cloudflare-api-token \
+    --from-file=api-token="$BOOTSTRAP_DIR/cloudflare-api-token"
+fi
 %{ else ~}
 log "WARNING: no Cloudflare token supplied; cert-manager cannot solve DNS01 and"
 log "         no TLS certificate will be issued."
 %{ endif ~}
+
+# The private registry pull secret is deliberately NOT created here. It is a
+# OnePasswordItem in k8s/apps/base/registry-credentials, so the operator owns it
+# and it is declared in git like every other secret.
+#
+# Two writers for one secret name is the failure that removed
+# cert-manager/cloudflare-api-token mid-session and silently broke every
+# certificate, so this stays single-writer. The cost is a short
+# ImagePullBackOff on a fresh cluster while the operator reaches sync wave 0 --
+# self-healing, and the same behaviour zot-auth already has.
 
 # --- 2. Argo CD ---------------------------------------------------------------
 log "Installing Argo CD (argo-cd chart ${argocd_chart_version})"

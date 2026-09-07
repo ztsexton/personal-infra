@@ -6,10 +6,10 @@
 #   export HCLOUD_TOKEN=...  CLOUDFLARE_API_TOKEN=...
 #   export CF_ZONE_ZACHSEXTON=...  CF_ZONE_PETFOODFINDER=...
 #
-#   ./scripts/tf-migration-ids.sh primary-ips        # Hetzner primary IP IDs
-#   ./scripts/tf-migration-ids.sh dns-imports        # cloudflare_record import cmds
+#   ./scripts/archive/tf-migration-ids.sh primary-ips        # Hetzner primary IP IDs
+#   ./scripts/archive/tf-migration-ids.sh dns-imports        # cloudflare_record import cmds
 #
-# The staging state-rm step now lives in ./scripts/tf-split-staging.sh, which
+# The staging state-rm step now lives in ./scripts/archive/tf-split-staging.sh, which
 # backs the state up and prompts before touching anything.
 set -euo pipefail
 
@@ -72,7 +72,7 @@ dns_imports() {
 }
 
 staging_state_rm() {
-  echo "moved: use ./scripts/tf-split-staging.sh instead (it backs up and prompts)." >&2
+  echo "moved: use ./scripts/archive/tf-split-staging.sh instead (it backs up and prompts)." >&2
   echo "Equivalent commands, for reference:" >&2
   cat <<'EOF'
 # Run from terraform/envs/production, BEFORE `terraform apply`.
