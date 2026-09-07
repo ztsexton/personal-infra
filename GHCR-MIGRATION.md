@@ -81,6 +81,7 @@ eval $(op signin)                                   # session must be in this sh
 ./scripts/onepassword-registry-auth.sh show         # read-only
 ./scripts/onepassword-registry-auth.sh add-ghcr
 ./scripts/onepassword-registry-auth.sh verify
+./scripts/secrets.sh status                         # confirms it is no longer an orphan
 ```
 
 `add-ghcr` reads the classic PAT from `Personal Infra PAT Github Classic`, merges

@@ -199,19 +199,21 @@ common ones:
 | Symptom | Cause | Fix |
 | ------- | ----- | --- |
 | `ImagePullBackOff` / `zot-registry-credentials` | step 4 not done, or redone after a rebuild | step 4 |
-| `ContainerCreating` / `zot-auth not found` | 1Password operator not running | step 1, then `./scripts/staging.sh up` |
+| `ContainerCreating` / `zot-auth not found` | 1Password operator not running | `./scripts/secrets.sh status`, then step 1 |
 | every host fails TLS | cert-manager has no Cloudflare token | check `cloudflare_api_token` is set in the tfvars, then `up` |
-| certificates stuck `READY=False` | stale ACME challenges from before the token existed | `kubectl -n web delete challenge,order,certificaterequest --all` |
+| certificates stuck `READY=False` | stale ACME challenges from before the token existed | `./scripts/certs.sh unstick` |
 | `argocd-staging` returns 502 | the ingress is on port 443 | must be port 80: the bootstrap sets `server.insecure`, so argocd-server speaks plain HTTP |
 | Traefik LoadBalancer stuck `<pending>` | MetalLB pool does not match the real address | `./scripts/set-env-ip.sh staging <ip>`, commit, push |
 
 Useful:
 
 ```bash
-./scripts/staging.sh status
+./scripts/staging.sh status      # address, server, k3s, ingress
+./scripts/staging.sh verify      # every configured URL, with real TLS
+./scripts/certs.sh status        # certificates and stuck challenges
+./scripts/secrets.sh status      # what exists, what is missing, what is orphaned
+./scripts/secrets.sh sources     # which vault item each secret comes from
 ./scripts/staging.sh ssh
-./scripts/staging.sh kubeconfig
-kubectl -n argocd get applications
 ```
 
 ---
