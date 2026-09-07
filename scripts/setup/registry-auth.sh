@@ -176,7 +176,12 @@ cmd_verify() {
 # The normal path suppresses stderr to avoid leaking values into logs, which also
 # hides the reason a call fails -- this is the escape hatch for that.
 cmd_doctor() {
-  need_op
+  # Deliberately does NOT call need_session: whether the session works is one of
+  # the things being diagnosed, so it must not be a precondition.
+  command -v op >/dev/null || die "the 1Password CLI is not on PATH"
+  # And `set -e` is off for the duration: a failing call is the finding here, not
+  # a reason to stop. Every step should run so the whole picture is visible.
+  set +e
   local v="${1:-Kubernetes}"
   echo "  op version : $(op --version 2>&1)"
   echo "  vault      : $v"
@@ -214,6 +219,7 @@ for f in d.get("fields", []):
   op item get "$PAT_ITEM" --vault "$v" --fields password --reveal >/dev/null; echo "    exit=$?"
   echo
   echo "  Values are never printed. Non-zero above is the failing call."
+  set -e
 }
 
 case "${1:-}" in
