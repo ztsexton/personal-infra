@@ -59,6 +59,21 @@ for f in d.get("fields", []):
         sys.stdout.write(f.get("value") or ""); break'
 }
 
+item_category() {
+  op item get "$ITEM" --vault "$1" --format json 2>/dev/null \
+    | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("category",""))' 2>/dev/null
+}
+
+item_password() {
+  op item get "$ITEM" --vault "$1" --format json 2>/dev/null | "$PY" -c '
+import sys, json
+try: d = json.load(sys.stdin)
+except Exception: sys.exit(0)
+for f in d.get("fields", []):
+    if f.get("id") == "password" or f.get("label") == "password":
+        sys.stdout.write(f.get("value") or ""); break' 2>/dev/null
+}
+
 registries_in() { # json on stdin
   "$PY" -c '
 import sys, json
@@ -151,7 +166,20 @@ print("|".join(str(d.get(k, "")) for k in ("updated_at", "updatedAt", "version")
     }
     before_ts=$(fingerprint "$v")
 
-    op item edit "$ITEM" --vault "$v" "$target=$merged" >/dev/null \
+    # The item's category is PASSWORD, and op validates the whole item on edit:
+    # an empty password field fails with "Password item requires ps value", so no
+    # edit of this item can succeed while it is blank. The field is unused -- the
+    # credential lives in .dockerconfigjson -- so it is given a self-describing
+    # marker. Verified that Kubernetes keeps the dockerconfigjson type with the
+    # extra key present.
+    local extra=()
+    if [ "$(item_category "$v")" = "PASSWORD" ] && [ -z "$(item_password "$v")" ]; then
+      warn "  password field is empty and op will not save a PASSWORD item without one;"
+      warn "  setting it to a marker (unused -- the credential is .dockerconfigjson)"
+      extra=("password=unused - credential is in the .dockerconfigjson field")
+    fi
+
+    op item edit "$ITEM" --vault "$v" "$target=$merged" "${extra[@]}" >/dev/null \
       || die "op item edit failed for vault '$v'"
 
     # Two independent checks. The value could look right while the item was never
