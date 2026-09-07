@@ -12,8 +12,8 @@ that spins down. GHCR is always available and needs no self-hosting.
 
 ## The pull secret covers both registries
 
-`registry_dockerconfigjson` holds auths for **both** `zot.zachsexton.com` and
-`ghcr.io`:
+The `.dockerconfigjson` in the vault holds auths for **both**
+`zot.zachsexton.com` and `ghcr.io`:
 
 ```json
 {"auths":{"zot.zachsexton.com":{"auth":"..."},"ghcr.io":{"auth":"..."}}}
@@ -74,38 +74,31 @@ curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $BT" \
 
 `200` means the package is there and the credential can read it.
 
-### 2. Give production a GHCR pull secret
+### 2. Add ghcr.io to the 1Password item
 
-Production is **not** bootstrapped by Terraform (`bootstrap_cluster = false`), so
-nothing creates this for it. Its existing `zot-registry-credentials` secret holds
-Zot credentials.
+The pull secret is a `OnePasswordItem`
+(`k8s/apps/base/registry-credentials/onepassword-secret.yaml`), so **no kubectl
+is involved** — the operator creates it in both environments from the vault.
 
-Keep the name and replace the contents with a config covering **both**
-registries. Because it still authenticates to Zot, this is safe to apply
-immediately — production keeps pulling from Zot until the manifest changes, and
-then starts pulling from GHCR without a second change:
+Edit `vaults/Kubernetes/items/zot-docker-config` and set its `.dockerconfigjson`
+field to cover both registries:
 
-```bash
-# against the production cluster
-kubectl -n web create secret generic zot-registry-credentials \
-  --type=kubernetes.io/dockerconfigjson \
-  --from-literal=.dockerconfigjson='{"auths":{"zot.zachsexton.com":{"auth":"<base64 admin:zot-pw>"},"ghcr.io":{"auth":"<base64 ztsexton:ghp_...>"}}}' \
-  --dry-run=client -o yaml | kubectl apply -f -
+```json
+{"auths":{"zot.zachsexton.com":{"auth":"<base64 admin:zot-pw>"},"ghcr.io":{"auth":"<base64 ztsexton:ghp_...>"}}}
 ```
 
-The secret keeps its Zot-era name until production is next rebuilt. Misleading,
-but renaming it now would break production, since the rename would reach it
-through the shared manifest before anything created the new name.
+Because it still authenticates to Zot, this is safe to do immediately and in any
+order: each environment keeps pulling from whichever registry its manifest names,
+and starts pulling from GHCR when the manifest changes, with no second edit.
 
-### 3. Staging already has it
+The item already had a field named exactly `.dockerconfigjson`, which is what
+lets the operator emit a `kubernetes.io/dockerconfigjson` secret directly. What
+was missing was any CR referencing it — which is why this secret had only ever
+existed as a hand-run `kubectl` command, in no repository.
 
-`registry_dockerconfigjson` in `terraform/envs/staging/terraform.tfvars` already
-carries both registries, and the bootstrap writes the secret on every rebuild.
-Re-run to apply:
+### 3. Nothing to do for staging
 
-```bash
-./scripts/staging.sh up
-```
+Same CR, same vault item — the operator syncs it there too.
 
 ### 4. Merge the manifest change here
 

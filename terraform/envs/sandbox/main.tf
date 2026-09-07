@@ -38,9 +38,8 @@ module "env" {
   ssh_key_ids        = [hcloud_ssh_key.this.id]
   ssh_private_key    = tls_private_key.this.private_key_openssh
 
-  k3s_token                 = var.k3s_token
-  cloudflare_api_token      = var.cloudflare_api_token
-  registry_dockerconfigjson = var.registry_dockerconfigjson
+  k3s_token            = var.k3s_token
+  cloudflare_api_token = var.cloudflare_api_token
 
   bootstrap_cluster            = var.bootstrap_cluster
   argocd_admin_password_bcrypt = var.argocd_admin_password_bcrypt
