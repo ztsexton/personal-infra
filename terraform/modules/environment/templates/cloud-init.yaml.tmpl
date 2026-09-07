@@ -88,18 +88,29 @@ write_files:
         # The interface name differs between Hetzner server generations, so it is
         # found by looking for the address rather than assumed. Hetzner brings the
         # NIC up shortly after boot, hence the wait.
-        log "Waiting for private address ${node_private_ip}"
-        PRIV_IFACE=""
+        # Hetzner assigns the address; this finds whichever interface holds one
+        # inside the node network. Nothing is hardcoded, so a second node needs no
+        # configuration at all -- it just comes up on the network and is found.
+        #
+        # The interface name differs between Hetzner server generations, and
+        # matching a CIDR needs real subnet maths, so python3 does the check --
+        # cloud-init is itself written in python, so it is always present.
+        log "Waiting for an address inside ${node_network_cidr}"
+        PRIV_IFACE=""; PRIV_IP=""
         for _ in $(seq 1 60); do
-          PRIV_IFACE=$(ip -o -4 addr show | awk '$4 ~ /^${node_private_ip}\// {print $2; exit}')
-          [ -n "$PRIV_IFACE" ] && break
+          FOUND=$(ip -o -4 addr show | python3 -c "import sys,ipaddress as I;n=I.ip_network('${node_network_cidr}');print(next((f[1]+' '+str(I.ip_interface(f[3]).ip) for f in (l.split() for l in sys.stdin) if len(f)>3 and I.ip_interface(f[3]).ip in n),''))")
+          if [ -n "$FOUND" ]; then
+            PRIV_IFACE="$${FOUND%% *}"
+            PRIV_IP="$${FOUND##* }"
+            break
+          fi
           sleep 2
         done
-        if [ -n "$PRIV_IFACE" ]; then
-          log "Private network up on $PRIV_IFACE (${node_private_ip})"
-          K3S_ARGS="$K3S_ARGS --node-ip ${node_private_ip} --flannel-iface $PRIV_IFACE"
+        if [ -n "$PRIV_IP" ]; then
+          log "Private network up on $PRIV_IFACE ($PRIV_IP)"
+          K3S_ARGS="$K3S_ARGS --node-ip $PRIV_IP --flannel-iface $PRIV_IFACE"
         else
-          log "WARNING: ${node_private_ip} never appeared; continuing on the public interface"
+          log "WARNING: no address inside ${node_network_cidr} appeared; continuing on the public interface"
         fi
         %{ endif ~}
 

@@ -93,7 +93,6 @@ resource "hcloud_server" "this" {
     pod_cidr          = var.pod_cidr
     service_cidr      = var.service_cidr
     node_network_cidr = var.node_network_cidr
-    node_private_ip   = var.node_private_ip
   })
 }
 
@@ -133,7 +132,6 @@ resource "hcloud_server_network" "this" {
 
   server_id = hcloud_server.this.id
   subnet_id = hcloud_network_subnet.this[0].id
-  # Fixed rather than assigned, so cloud-init can be told which address to wait
-  # for without needing a value that only exists after the server is created.
-  ip = var.node_private_ip
+  # No `ip`: Hetzner assigns from the subnet and cloud-init discovers whichever
+  # address it got. A second node then needs no per-node configuration.
 }
