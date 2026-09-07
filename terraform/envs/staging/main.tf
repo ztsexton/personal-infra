@@ -32,6 +32,11 @@ module "env" {
 
   k3s_token = var.k3s_token
 
+  # Private network for node-to-node traffic. Takes effect on the next rebuild:
+  # k3s reads --node-ip and --flannel-iface at install time only, and user_data
+  # is ignored on an existing server.
+  node_network_cidr = "10.0.0.0/16"
+
   argocd_admin_password_bcrypt = var.argocd_admin_password_bcrypt
   git_root_app_path            = "k8s/argocd/staging"
   git_revision                 = var.git_revision

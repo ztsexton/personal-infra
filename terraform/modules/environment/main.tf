@@ -93,5 +93,47 @@ resource "hcloud_server" "this" {
     pod_cidr          = var.pod_cidr
     service_cidr      = var.service_cidr
     node_network_cidr = var.node_network_cidr
+    node_private_ip   = var.node_private_ip
   })
+}
+
+# --- Private network ----------------------------------------------------------
+#
+# Node-to-node traffic (flannel VXLAN, the kubelet API, etcd between servers)
+# belongs on a private network rather than the public internet. Created per
+# environment: each is its own root module with its own state, so a shared
+# network would mean one environment owning a resource the others depend on.
+#
+# Free on Hetzner, and it is what gives node_network_cidr a value, which is what
+# opens the node-to-node firewall rules.
+#
+# Attaching this to a running server is a hot-attach and does not restart it, but
+# k3s only reads --node-ip and --flannel-iface at install time and user_data is
+# ignored after creation -- so an existing node keeps using its public IP until
+# it is rebuilt. New nodes come up on the private network immediately.
+resource "hcloud_network" "this" {
+  count = var.node_network_cidr != "" ? 1 : 0
+
+  name     = "${var.server_name}-net"
+  ip_range = var.node_network_cidr
+  labels   = { environment = var.environment }
+}
+
+resource "hcloud_network_subnet" "this" {
+  count = var.node_network_cidr != "" ? 1 : 0
+
+  network_id   = hcloud_network.this[0].id
+  type         = "cloud"
+  network_zone = var.network_zone
+  ip_range     = var.node_subnet_cidr
+}
+
+resource "hcloud_server_network" "this" {
+  count = var.node_network_cidr != "" ? 1 : 0
+
+  server_id = hcloud_server.this.id
+  subnet_id = hcloud_network_subnet.this[0].id
+  # Fixed rather than assigned, so cloud-init can be told which address to wait
+  # for without needing a value that only exists after the server is created.
+  ip = var.node_private_ip
 }

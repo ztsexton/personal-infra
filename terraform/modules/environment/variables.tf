@@ -66,6 +66,24 @@ variable "node_network_cidr" {
   default     = ""
 }
 
+variable "node_subnet_cidr" {
+  description = "Subnet within node_network_cidr that nodes get addresses from."
+  type        = string
+  default     = "10.0.1.0/24"
+}
+
+variable "node_private_ip" {
+  description = "Fixed private address for this server. Chosen rather than assigned so cloud-init can be told which address to wait for. A second node needs its own."
+  type        = string
+  default     = "10.0.1.10"
+}
+
+variable "network_zone" {
+  description = "Hetzner network zone the subnet lives in. eu-central covers fsn1/nbg1/hel1; us-east covers ash."
+  type        = string
+  default     = "us-east"
+}
+
 variable "pod_cidr" {
   description = "k3s pod CIDR, allowed through ufw."
   type        = string

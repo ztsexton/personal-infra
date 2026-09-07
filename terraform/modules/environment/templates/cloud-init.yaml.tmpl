@@ -77,10 +77,36 @@ write_files:
         #              controllers fight over LoadBalancer services
         # tls-san   -> lets a kubeconfig rewritten to the public IP actually
         #              validate, which the documented scp workflow depends on
+        K3S_ARGS="server --disable traefik --disable servicelb --tls-san $PUBIP --node-external-ip $PUBIP --write-kubeconfig-mode 600"
+
+        %{ if node_network_cidr != "" ~}
+        # Put intra-cluster traffic on the private network. --node-ip is the
+        # address other nodes reach this one on; --flannel-iface is the interface
+        # VXLAN binds to. Without both, k3s advertises the public IP and node-to-
+        # node traffic crosses the internet even though a private network exists.
+        #
+        # The interface name differs between Hetzner server generations, so it is
+        # found by looking for the address rather than assumed. Hetzner brings the
+        # NIC up shortly after boot, hence the wait.
+        log "Waiting for private address ${node_private_ip}"
+        PRIV_IFACE=""
+        for _ in $(seq 1 60); do
+          PRIV_IFACE=$(ip -o -4 addr show | awk '$4 ~ /^${node_private_ip}\// {print $2; exit}')
+          [ -n "$PRIV_IFACE" ] && break
+          sleep 2
+        done
+        if [ -n "$PRIV_IFACE" ]; then
+          log "Private network up on $PRIV_IFACE (${node_private_ip})"
+          K3S_ARGS="$K3S_ARGS --node-ip ${node_private_ip} --flannel-iface $PRIV_IFACE"
+        else
+          log "WARNING: ${node_private_ip} never appeared; continuing on the public interface"
+        fi
+        %{ endif ~}
+
         curl -sfL https://get.k3s.io \
           | INSTALL_K3S_VERSION="${k3s_version}" \
             K3S_TOKEN="${k3s_token}" \
-            INSTALL_K3S_EXEC="server --disable traefik --disable servicelb --tls-san $PUBIP --node-external-ip $PUBIP --write-kubeconfig-mode 600" \
+            INSTALL_K3S_EXEC="$K3S_ARGS" \
             sh -
       else
         log "k3s already installed; skipping"
