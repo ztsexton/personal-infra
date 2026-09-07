@@ -107,7 +107,7 @@ preflight() {
     has_value "$v" || {
       warn "$v is empty: the bootstrap will skip 1Password, leaving"
       warn "  onepassword-operator Degraded and every OnePasswordItem-backed"
-      warn "  secret missing (cloudflare-api-token, zot-auth, ...)."
+      warn "  secret missing (cloudflare-api-token, firebase, ...)."
       break
     }
   done
@@ -283,7 +283,6 @@ STAGING_HOSTS=(
   "spotifybutler-staging.zachsexton.com|web|app=spotifybutler"
   "staging.petfoodfinder.app|web|app=ballroom-competition-web"
   "syllabus-staging.zachsexton.com|web|app=ballroom-syllabi"
-  "zot-staging.zachsexton.com|web|app=zot"
   "grafana-staging.zachsexton.com|monitoring|app.kubernetes.io/name=grafana"
   "argocd-staging.zachsexton.com|argocd|app.kubernetes.io/name=argocd-server"
 )
