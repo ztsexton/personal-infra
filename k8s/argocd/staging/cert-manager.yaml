@@ -14,6 +14,18 @@ spec:
     helm:
       values: |
         installCRDs: true
+        # Check DNS-01 propagation against public recursive resolvers rather
+        # than the authoritative servers cert-manager finds via the SOA.
+        #
+        # zachsexton-wildcard-cert covers zachsexton.com and *.zachsexton.com,
+        # and both challenges write the SAME record --
+        # _acme-challenge.zachsexton.com -- with two different values. The
+        # default self-check repeatedly saw only one of them and the order
+        # stalled indefinitely, so every cold rebuild needed the Order
+        # deleting by hand before it would issue.
+        extraArgs:
+          - --dns01-recursive-nameservers-only
+          - --dns01-recursive-nameservers=1.1.1.1:53,8.8.8.8:53
   destination:
     server: https://kubernetes.default.svc
     namespace: cert-manager
