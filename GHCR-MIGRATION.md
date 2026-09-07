@@ -78,9 +78,9 @@ curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $BT" \
 
 ```bash
 eval $(op signin)                                   # session must be in this shell
-./scripts/onepassword-registry-auth.sh show         # read-only
-./scripts/onepassword-registry-auth.sh add-ghcr
-./scripts/onepassword-registry-auth.sh verify
+./scripts/setup/registry-auth.sh show         # read-only
+./scripts/setup/registry-auth.sh add-ghcr
+./scripts/setup/registry-auth.sh verify
 ./scripts/secrets.sh status                         # confirms it is no longer an orphan
 ```
 

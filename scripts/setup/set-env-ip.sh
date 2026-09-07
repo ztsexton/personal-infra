@@ -6,13 +6,13 @@
 # syncs. Rebuilding an environment onto a new address means updating both, and
 # missing one leaves Traefik's LoadBalancer stuck pending with every ingress down.
 #
-#   ./scripts/set-env-ip.sh staging            # show what is set now
-#   ./scripts/set-env-ip.sh staging 1.2.3.4    # rewrite both files
+#   ./scripts/setup/set-env-ip.sh staging            # show what is set now
+#   ./scripts/setup/set-env-ip.sh staging 1.2.3.4    # rewrite both files
 #
 # Commit and push afterwards: Argo CD is what applies them.
 set -euo pipefail
 
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 
 red()   { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }

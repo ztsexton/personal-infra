@@ -38,9 +38,9 @@ service accounts cannot create Connect servers.
 # into other shells
 eval $(op signin)
 
-./scripts/onepassword-connect.sh check     # must report "signed in"
-./scripts/onepassword-connect.sh list      # read-only; shows production's server
-./scripts/onepassword-connect.sh create personal-infra-staging Kubernetes,Kubernetes-Staging
+./scripts/setup/onepassword-connect.sh check     # must report "signed in"
+./scripts/setup/onepassword-connect.sh list      # read-only; shows production's server
+./scripts/setup/onepassword-connect.sh create personal-infra-staging Kubernetes,Kubernetes-Staging
 ```
 
 `check` tests `op whoami`, not `op account list` — the latter exits 0 for an
@@ -71,7 +71,7 @@ grep -c '^onepassword_.* = "..*"' terraform/envs/staging/terraform.tfvars   # ex
 ## Step 2 — Confirm the address is protected (one-time)
 
 ```bash
-./scripts/hcloud-primary-ip.sh list
+./scripts/setup/hcloud-primary-ip.sh list
 ```
 
 `personal-staging-ipv4` must show `auto_delete=false`. That is what keeps the
@@ -82,7 +82,7 @@ hardcoded in the staging MetalLB pool and Traefik values valid — and is why
 If it ever shows `auto_delete=true`:
 
 ```bash
-./scripts/hcloud-primary-ip.sh protect <that-ip>
+./scripts/setup/hcloud-primary-ip.sh protect <that-ip>
 ```
 
 ---
@@ -106,57 +106,22 @@ then runs `verify`.
 It is safe to re-run. If only the tfvars changed, it re-runs the bootstrap
 (~90s) without touching the server.
 
-## Step 4 — Create the registry pull secret
+## Step 4 — Nothing to do
 
-The one manual step, and the one that needs a value this repo does not hold.
+The registry pull secret used to be a manual `kubectl` here. It is now a
+`OnePasswordItem` (`k8s/apps/base/registry-credentials`), so the operator creates
+it from the vault in every cluster, and a rebuild reproduces it on its own.
 
-`ballroom-competition-web` and `ballroom-syllabi` pull from
-`zot.zachsexton.com` — the **production** registry — and fail with:
-
-```text
-pull access denied ... authorization failed: no basic auth credentials
-```
-
-`zot-registry-credentials` is not a 1Password item. It has to be built from the
-Zot admin username and password:
+If it is missing, the credential is wrong or absent in 1Password rather than in
+the cluster:
 
 ```bash
-export KUBECONFIG=$PWD/kubeconfig-staging.yaml
-
-kubectl -n web create secret docker-registry zot-registry-credentials \
-  --docker-server=zot.zachsexton.com \
-  --docker-username=admin \
-  --docker-password='<the plaintext Zot admin password>' \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-kubectl -n web delete pod -l app=ballroom-competition-web
-kubectl -n web delete pod -l app=ballroom-syllabi
+./scripts/secrets.sh status              # is it synced, or orphaned?
+./scripts/setup/registry-auth.sh show    # which registries the vault value covers
 ```
 
-### Why it cannot be derived from `zot-auth`
-
-`scripts/setup-zot-registry-credentials.sh` and
-`k8s/apps/base/ballroom-competition-web/README.md` both say to take the password
-from the `zot-auth` secret:
-
-```bash
-# WRONG -- this yields a bcrypt hash, not a password
-kubectl -n web get secret zot-auth -o jsonpath='{.data.password}' | base64 -d | cut -d: -f2
-```
-
-`zot-auth` is synced from `vaults/Kubernetes/items/zot-htpasswd` and holds an
-**htpasswd line**: `admin:$2y$...`. Field 2 is the bcrypt hash Zot checks
-passwords against, not a password — feeding it to `--docker-password` produces a
-secret that always fails authentication.
-
-The plaintext exists only wherever it was originally set. If it is not in
-1Password, the alternative is to rotate it: generate a new password, regenerate
-the htpasswd entry (`scripts/setup-zot-auth.sh`), update the `zot-htpasswd` item,
-and recreate this secret. **That rotates production's registry credentials too**,
-since both environments read the same 1Password item.
-
-> Like the rest of this step, the secret does not survive a spin-down and must be
-> recreated after every `up`.
+It cannot be derived from `zot-auth`: that secret holds an htpasswd line, whose
+second field is a bcrypt hash rather than a password.
 
 ## Step 5 — Verify
 
@@ -203,7 +168,7 @@ common ones:
 | every host fails TLS | cert-manager has no Cloudflare token | check `cloudflare_api_token` is set in the tfvars, then `up` |
 | certificates stuck `READY=False` | stale ACME challenges from before the token existed | `./scripts/certs.sh unstick` |
 | `argocd-staging` returns 502 | the ingress is on port 443 | must be port 80: the bootstrap sets `server.insecure`, so argocd-server speaks plain HTTP |
-| Traefik LoadBalancer stuck `<pending>` | MetalLB pool does not match the real address | `./scripts/set-env-ip.sh staging <ip>`, commit, push |
+| Traefik LoadBalancer stuck `<pending>` | MetalLB pool does not match the real address | `./scripts/setup/set-env-ip.sh staging <ip>`, commit, push |
 
 Useful:
 

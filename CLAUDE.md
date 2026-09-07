@@ -180,13 +180,13 @@ CD password are generated.
 ### Troubleshoot ArgoCD
 
 ```bash
-./scripts/diagnose_argo.sh
+./scripts/archive/diagnose_argo.sh
 ```
 
 ### Troubleshoot ingress/networking
 
 ```bash
-./scripts/diagnose_ingress.sh
+./scripts/archive/diagnose_ingress.sh
 ```
 
 ### Re-run the cluster bootstrap
@@ -240,11 +240,11 @@ Apps just need to log to stdout (JSON preferred via pino). No app-side log shipp
 - MetalLB binds each server's external IP as the LoadBalancer IP (per-environment config)
 - **That IP is hardcoded in two places per environment** — `k8s/argocd/<env>/traefik.yaml`
   (`loadBalancerIP`) and `k8s/networking/metallb/<env>/addresspool.yaml`. Use
-  `./scripts/set-env-ip.sh <env> <ip>` to change both; missing one leaves Traefik's
+  `./scripts/setup/set-env-ip.sh <env> <ip>` to change both; missing one leaves Traefik's
   LoadBalancer pending with every ingress down
 - **Hetzner primary IPs must have `auto_delete = false`** or destroying a server
   releases its address, invalidating those manifests and every DNS record. Staging
-  lost its address this way. Check with `./scripts/hcloud-primary-ip.sh list`;
+  lost its address this way. Check with `./scripts/setup/hcloud-primary-ip.sh list`;
   environments built by `modules/environment` manage the IP as its own resource
 - All TLS certificates are per-domain for independent renewal
 - Zot registry has a 2GB upload limit configured via Traefik middleware

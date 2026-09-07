@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Manage the private-registry pull credential stored in 1Password.
 #
-#   ./scripts/onepassword-registry-auth.sh show
-#   ./scripts/onepassword-registry-auth.sh add-ghcr
-#   ./scripts/onepassword-registry-auth.sh verify
+#   ./scripts/setup/registry-auth.sh show
+#   ./scripts/setup/registry-auth.sh add-ghcr
+#   ./scripts/setup/registry-auth.sh verify
 #
 # The `zot-docker-config` item's `.dockerconfigjson` field is the single source
 # for the zot-registry-credentials pull secret. A OnePasswordItem CR
@@ -24,7 +24,8 @@ PAT_ITEM="${OP_PAT_ITEM:-Personal Infra PAT Github Classic}"
 VAULTS=("${@:2}")
 [ "${#VAULTS[@]}" -gt 0 ] || VAULTS=(Kubernetes Kubernetes-Staging)
 FIELD='.dockerconfigjson'
-PY="${PY:-/home/zsext/personal-infra/.venv/bin/python}"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+PY="${PY:-$REPO/.venv/bin/python}"
 [ -x "$PY" ] || PY=python3
 
 red()   { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
@@ -116,7 +117,7 @@ print(json.dumps(cfg, separators=(",", ":")))' <<<"$current")
 }
 
 cmd_verify() {
-  local kc="/home/zsext/personal-infra/kubeconfig-staging.yaml"
+  local kc="${KUBECONFIG:-$REPO/kubeconfig-staging.yaml}"
   [ -f "$kc" ] || die "no staging kubeconfig; run: ./scripts/staging.sh kubeconfig"
   step "secret as it exists in the staging cluster"
   kubectl --kubeconfig "$kc" -n web get secret zot-registry-credentials \

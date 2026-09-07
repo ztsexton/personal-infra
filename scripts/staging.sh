@@ -144,7 +144,7 @@ sync_manifests() {
   fi
 
   step "pointing staging manifests at $ip"
-  "$REPO/scripts/set-env-ip.sh" staging "$ip"
+  "$REPO/scripts/setup/set-env-ip.sh" staging "$ip"
 
   local branch
   branch=$(git -C "$REPO" branch --show-current)

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Simple k3s / Traefik / cert-manager ingress diagnostic helper.
-# Usage: ./scripts/diagnose_ingress.sh [namespace(optional, default=web)]
+# Usage: ./scripts/archive/diagnose_ingress.sh [namespace(optional, default=web)]
 
 NS=${1:-web}
 YELLOW='\033[1;33m'; GREEN='\033[0;32m'; RED='\033[0;31m'; NC='\033[0m'

@@ -214,15 +214,15 @@ create the destination and destroy the untracked original.
 This has been checked against the live Scalr state and all 15 blocks resolve:
 
 ```bash
-./scripts/tf-preflight.sh addresses   # what is really in state
-./scripts/tf-preflight.sh moved       # flags any `from` that is not there
+./scripts/archive/tf-preflight.sh addresses   # what is really in state
+./scripts/archive/tf-preflight.sh moved       # flags any `from` that is not there
 ```
 
 Re-run `moved` if anything about the state changes before you migrate.
 
 ### What the workspace already guarantees
 
-`./scripts/tf-preflight.sh workspace` reports the settings that matter:
+`./scripts/archive/tf-preflight.sh workspace` reports the settings that matter:
 
 | Setting | Value | Why it matters |
 | --- | --- | --- |
@@ -254,7 +254,7 @@ remaining work, and it is now a *fresh* build rather than an adoption.
 
 ```bash
 terraform login zsexton.scalr.io     # if the token has expired
-./scripts/tf-preflight.sh workspace
+./scripts/archive/tf-preflight.sh workspace
 ```
 
 `auto_apply` must read **false**. It already does, which means a push to `master`
@@ -268,9 +268,9 @@ configuration. Do not approve that run.
 ### 1. Point Scalr at the new directory
 
 ```bash
-./scripts/scalr-workspace.sh show
-./scripts/scalr-workspace.sh set-working-dir terraform/envs/production
-./scripts/scalr-workspace.sh set-trigger-prefixes terraform/envs/production terraform/modules
+./scripts/setup/scalr-workspace.sh show
+./scripts/setup/scalr-workspace.sh set-working-dir terraform/envs/production
+./scripts/setup/scalr-workspace.sh set-trigger-prefixes terraform/envs/production terraform/modules
 ```
 
 Both trigger prefixes matter: `envs/production` sources `../../modules/environment`,
@@ -279,13 +279,13 @@ without ever queueing a plan.
 
 Every mutating command snapshots the workspace to `.scalr-backups/` first and
 builds its payload from the live object, so no field is dropped.
-`./scripts/scalr-workspace.sh restore <backup.json>` puts it back.
+`./scripts/setup/scalr-workspace.sh restore <backup.json>` puts it back.
 
 ### 2. Verify the moved blocks against real state
 
 ```bash
-./scripts/tf-preflight.sh addresses
-./scripts/tf-preflight.sh moved
+./scripts/archive/tf-preflight.sh addresses
+./scripts/archive/tf-preflight.sh moved
 ```
 
 Fix `moved.tf` until nothing is reported MISSING. Do not skip this.
@@ -296,8 +296,8 @@ State-only; `terraform state rm` forgets a resource, it does not destroy it. The
 staging server and DNS keep running and are adopted by `envs/staging` in step 5.
 
 ```bash
-./scripts/tf-split-staging.sh check     # confirm all 10 are there
-./scripts/tf-split-staging.sh remove    # prompts, backs the state up first
+./scripts/archive/tf-split-staging.sh check     # confirm all 10 are there
+./scripts/archive/tf-split-staging.sh remove    # prompts, backs the state up first
 ```
 
 Order matters: run this only once Scalr reads the new layout for production. Run
@@ -314,7 +314,7 @@ or in the two safety switches.
 Approve and merge only on an empty plan. `moved.tf` can be deleted afterwards.
 
 If you would rather gate from the CLI, switch the workspace to local execution
-mode first, then `./scripts/tf-preflight.sh plan` works directly.
+mode first, then `./scripts/archive/tf-preflight.sh plan` works directly.
 
 ### 5. Staging: one command up, one command down
 
@@ -356,9 +356,9 @@ expression rather than from the branch that evaluates.
 #### Getting the 1Password credentials
 
 ```bash
-./scripts/onepassword-connect.sh check     # is op installed and signed in
-./scripts/onepassword-connect.sh create    # new Connect server + token -> tfvars
-./scripts/onepassword-connect.sh import <credentials.json> <token>
+./scripts/setup/onepassword-connect.sh check     # is op installed and signed in
+./scripts/setup/onepassword-connect.sh create    # new Connect server + token -> tfvars
+./scripts/setup/onepassword-connect.sh import <credentials.json> <token>
 ```
 
 Creating a Connect server needs an interactive 1Password sign-in and membership
@@ -403,8 +403,8 @@ lost staging's address. Production does not manage its IP through Terraform
 (`manage_primary_ip = false`), so this is set out of band:
 
 ```bash
-./scripts/hcloud-primary-ip.sh list
-./scripts/hcloud-primary-ip.sh protect 178.156.205.252
+./scripts/setup/hcloud-primary-ip.sh list
+./scripts/setup/hcloud-primary-ip.sh protect 178.156.205.252
 ```
 
 It does not touch the server, and it means a future rebuild of production keeps

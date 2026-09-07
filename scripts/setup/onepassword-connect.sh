@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Put 1Password Connect credentials into an environment's terraform.tfvars.
 #
-#   ./scripts/onepassword-connect.sh list
-#   ./scripts/onepassword-connect.sh check
-#   ./scripts/onepassword-connect.sh create [server-name] [vault]
-#   ./scripts/onepassword-connect.sh import <credentials.json> <token>
+#   ./scripts/setup/onepassword-connect.sh list
+#   ./scripts/setup/onepassword-connect.sh check
+#   ./scripts/setup/onepassword-connect.sh create [server-name] [vault]
+#   ./scripts/setup/onepassword-connect.sh import <credentials.json> <token>
 #
 # `create` makes a NEW Connect server and token and writes both into the tfvars.
 # `import` takes a credentials file and token you already have -- use this if the
@@ -16,7 +16,7 @@
 # token is not sufficient: service accounts cannot create Connect servers.
 set -euo pipefail
 
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 ENVIRONMENT="${ENVIRONMENT:-staging}"
 TFVARS="$REPO/terraform/envs/$ENVIRONMENT/terraform.tfvars"
 export PATH="$HOME/bin:$PATH"
@@ -96,7 +96,7 @@ cmd_list() {
 
 cmd_create() {
   need_op
-  cmd_check >/dev/null || die "sign in first: ./scripts/onepassword-connect.sh check"
+  cmd_check >/dev/null || die "sign in first: ./scripts/setup/onepassword-connect.sh check"
 
   # Show what already exists, so it is obvious this is additive and that
   # production's Connect server is left alone. Never fatal.
