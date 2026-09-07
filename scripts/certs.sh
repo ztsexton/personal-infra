@@ -113,11 +113,21 @@ cmd_watch() {
   preflight
   local i=0
   until [ $i -ge 30 ]; do
-    local total ready
+    local total ready missing
     total=$(k get certificate -A --no-headers 2>/dev/null | wc -l)
     ready=$(k get certificate -A --no-headers 2>/dev/null | awk '$3=="True"' | wc -l)
-    printf '  %s  ready %s/%s\n' "$(date +%H:%M:%S)" "$ready" "$total"
-    [ "$total" -gt 0 ] && [ "$ready" = "$total" ] && { green "all issued"; return 0; }
+
+    # A Certificate's Ready status lags reality: delete its secret and it still
+    # reports True for a while. Requiring the secret to exist as well stops this
+    # reporting success against state that is already gone.
+    missing=0
+    while read -r ns _ _ sec _; do
+      [ -n "$ns" ] || continue
+      k -n "$ns" get secret "$sec" >/dev/null 2>&1 || missing=$((missing+1))
+    done < <(k get certificate -A --no-headers 2>/dev/null)
+
+    printf '  %s  ready %s/%s  secrets missing: %s\n' "$(date +%H:%M:%S)" "$ready" "$total" "$missing"
+    [ "$total" -gt 0 ] && [ "$ready" = "$total" ] && [ "$missing" = "0" ] && { green "all issued"; return 0; }
     i=$((i+1)); sleep 10
   done
   warn "still not all issued. Check for stuck challenges: $0 status"
