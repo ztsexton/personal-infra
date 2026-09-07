@@ -89,8 +89,9 @@ resource "hcloud_server" "this" {
     k3s_version = var.k3s_version
     # Cannot be local.public_ip: that reads back from this very resource when the
     # module does not own the address. cloud-init resolves it at runtime instead.
-    public_ip    = var.manage_primary_ip ? local.primary_ip.ip_address : ""
-    pod_cidr     = var.pod_cidr
-    service_cidr = var.service_cidr
+    public_ip         = var.manage_primary_ip ? local.primary_ip.ip_address : ""
+    pod_cidr          = var.pod_cidr
+    service_cidr      = var.service_cidr
+    node_network_cidr = var.node_network_cidr
   })
 }

@@ -60,6 +60,12 @@ variable "k3s_version" {
   default     = "v1.31.5+k3s1"
 }
 
+variable "node_network_cidr" {
+  description = "Private network CIDR the cluster's nodes share. When set, the firewall allows flannel VXLAN (8472/udp), the kubelet API (10250/tcp) and embedded etcd (2379-2380/tcp) from it. Empty leaves those closed, which is correct for a single node."
+  type        = string
+  default     = ""
+}
+
 variable "pod_cidr" {
   description = "k3s pod CIDR, allowed through ufw."
   type        = string

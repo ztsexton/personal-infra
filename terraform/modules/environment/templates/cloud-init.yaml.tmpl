@@ -37,6 +37,24 @@ write_files:
       ufw allow from ${pod_cidr}
       ufw allow from ${service_cidr}
       ufw allow in on cni0
+
+      # Node-to-node traffic, needed the moment a second node joins. Scoped to
+      # the private network rather than opened to the internet, so it stays shut
+      # until node_network_cidr is set.
+      #
+      #   8472/udp   flannel VXLAN. Without it an agent joins and looks healthy
+      #              while pod-to-pod traffic across nodes is silently dropped
+      #   10250/tcp  kubelet API: kubectl logs/exec and metrics-server
+      #   2379-2380  embedded etcd, only used when running more than one server
+      %{ if node_network_cidr != "" ~}
+      log "Allowing node-to-node traffic from ${node_network_cidr}"
+      ufw allow from ${node_network_cidr} to any port 8472 proto udp
+      ufw allow from ${node_network_cidr} to any port 10250 proto tcp
+      ufw allow from ${node_network_cidr} to any port 2379:2380 proto tcp
+      %{ else ~}
+      log "No node network configured; node-to-node ports stay closed (single node)"
+      %{ endif ~}
+
       echo 'y' | ufw enable
 
       # --- k3s ----------------------------------------------------------------
