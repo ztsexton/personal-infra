@@ -9,5 +9,15 @@ spec:
     name: cloudflare-dns
     kind: ClusterIssuer
   dnsNames:
-    - zachsexton.com
+    # Deliberately NOT zachsexton.com. Staging serves no apex host -- every
+    # ingress here is *.zachsexton.com -- and including it caused two problems.
+    #
+    # Let's Encrypt limits duplicate certificates to 5 per week per exact set of
+    # names. With the apex included, this set was identical to production's, so
+    # staging rebuilds and production renewals drew on the same allowance. Spin
+    # staging up and down a few times and production's renewal fails too.
+    #
+    # It also made this certificate need two DNS-01 challenges writing two values
+    # to one record, _acme-challenge.zachsexton.com, which is what stalled every
+    # cold rebuild. A wildcard on its own needs a single challenge.
     - "*.zachsexton.com"
