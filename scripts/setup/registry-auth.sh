@@ -97,16 +97,44 @@ cfg.setdefault("auths", {})["ghcr.io"] = {
 }
 print(json.dumps(cfg, separators=(",", ":")))' <<<"$current")
 
-    # A leading dot in a field name is section syntax to `op item edit`, so the
-    # assignment is quoted and the result is read back rather than trusted.
-    op item edit "$ITEM" --vault "$v" "$FIELD=$merged" >/dev/null \
+    # `op item edit` addresses fields as [section.]field=value. This field is
+    # named ".dockerconfigjson" AND lives in a section, so the unqualified form
+    # silently fails to match. The qualifier is read from the item rather than
+    # assumed, since a field added through the 1Password UI lands in a section
+    # called "add more" whose label is null.
+    local target before_ts after_ts
+    target=$(op item get "$ITEM" --vault "$v" --format json 2>/dev/null | "$PY" -c '
+import sys, json
+d = json.load(sys.stdin)
+for f in d.get("fields", []):
+    if f.get("label") == ".dockerconfigjson":
+        sec = (f.get("section") or {}).get("id")
+        print("%s.%s" % (sec, f["label"]) if sec else f["label"])
+        break')
+    [ -n "$target" ] || die "could not locate the .dockerconfigjson field in '$v'"
+    echo "  field address: $target"
+
+    before_ts=$(op item get "$ITEM" --vault "$v" --format json 2>/dev/null \
+                 | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("updated_at",""))')
+
+    op item edit "$ITEM" --vault "$v" "$target=$merged" >/dev/null \
       || die "op item edit failed for vault '$v'"
 
+    # Two independent checks. The value could look right while the item was never
+    # written -- which is exactly what happened when the field address was wrong:
+    # op exited without error and the item's timestamp never moved.
     local after
     after=$(get_field "$v")
+    after_ts=$(op item get "$ITEM" --vault "$v" --format json 2>/dev/null \
+                | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("updated_at",""))')
+
     echo "$after" | grep -q '"ghcr.io"' \
-      || die "wrote to '$v' but ghcr.io is not in the field afterwards -- check for a stray section/field"
+      || die "wrote to '$v' but ghcr.io is not in the field afterwards"
+    [ "$before_ts" != "$after_ts" ] \
+      || die "the item in '$v' was not modified (updated_at is unchanged at $before_ts) -- the write did not land"
+
     printf '  now covers: '; echo "$after" | registries_in
+    echo "  item updated: $after_ts"
   done
 
   echo
