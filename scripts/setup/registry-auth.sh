@@ -133,8 +133,17 @@ for f in d.get("fields", []):
     [ -n "$target" ] || die "could not locate the .dockerconfigjson field in '$v'"
     echo "  field address: $target"
 
-    before_ts=$(op item get "$ITEM" --vault "$v" --format json 2>/dev/null \
-                 | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("updated_at",""))')
+    # Fingerprint rather than one key: op's JSON has used both updated_at and
+    # updatedAt across versions, and `version` increments on every edit. If none
+    # of them are present the check is skipped rather than failing a good write.
+    fingerprint() {
+      op item get "$ITEM" --vault "$1" --format json 2>/dev/null | "$PY" -c '
+import sys, json
+try: d = json.load(sys.stdin)
+except Exception: sys.exit(0)
+print("|".join(str(d.get(k, "")) for k in ("updated_at", "updatedAt", "version")).strip("|"))'
+    }
+    before_ts=$(fingerprint "$v")
 
     op item edit "$ITEM" --vault "$v" "$target=$merged" >/dev/null \
       || die "op item edit failed for vault '$v'"
@@ -144,13 +153,15 @@ for f in d.get("fields", []):
     # op exited without error and the item's timestamp never moved.
     local after
     after=$(get_field "$v")
-    after_ts=$(op item get "$ITEM" --vault "$v" --format json 2>/dev/null \
-                | "$PY" -c 'import sys,json;print(json.load(sys.stdin).get("updated_at",""))')
+    after_ts=$(fingerprint "$v")
 
     echo "$after" | grep -q '"ghcr.io"' \
       || die "wrote to '$v' but ghcr.io is not in the field afterwards"
-    [ "$before_ts" != "$after_ts" ] \
-      || die "the item in '$v' was not modified (updated_at is unchanged at $before_ts) -- the write did not land"
+    if [ -z "$before_ts" ] && [ -z "$after_ts" ]; then
+      warn "  could not read a version/timestamp to confirm the write; relying on the value check alone"
+    elif [ "$before_ts" = "$after_ts" ]; then
+      die "the item in '$v' was not modified (unchanged at $before_ts) -- the write did not land"
+    fi
 
     printf '  now covers: '; echo "$after" | registries_in
     echo "  item updated: $after_ts"
