@@ -122,13 +122,19 @@ print(json.dumps(cfg, separators=(",", ":")))' <<<"$current")
     # assumed, since a field added through the 1Password UI lands in a section
     # called "add more" whose label is null.
     local target before_ts after_ts
+    # op parses the assignment as [<section>.]<field>=value, so any period that is
+    # part of a name rather than the separator has to be escaped. This field is
+    # literally called ".dockerconfigjson", so unescaped it reads as an empty
+    # field name inside a section -- which is what produced
+    #   "more than 1 unescaped period detected"
     target=$(op item get "$ITEM" --vault "$v" --format json 2>/dev/null | "$PY" -c '
 import sys, json
 d = json.load(sys.stdin)
 for f in d.get("fields", []):
     if f.get("label") == ".dockerconfigjson":
+        esc = lambda x: x.replace(".", "\\.")
         sec = (f.get("section") or {}).get("id")
-        print("%s.%s" % (sec, f["label"]) if sec else f["label"])
+        print("%s.%s" % (esc(sec), esc(f["label"])) if sec else esc(f["label"]))
         break')
     [ -n "$target" ] || die "could not locate the .dockerconfigjson field in '$v'"
     echo "  field address: $target"
