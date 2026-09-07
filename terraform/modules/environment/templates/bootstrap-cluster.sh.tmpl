@@ -53,31 +53,19 @@ log "         onepassword-operator will stay Degraded and every OnePasswordItem"
 log "         backed secret (cloudflare-api-token, zot-auth, ...) will be missing."
 %{ endif ~}
 
-# --- 1b. cert-manager Cloudflare token ----------------------------------------
-# cert-manager solves the DNS01 challenge with this secret, and the ClusterIssuers
-# reference it by name. It is normally synced from 1Password, which makes TLS for
-# a whole environment depend on the 1Password bootstrap having succeeded. The
-# token is already a variable here, so it is written directly and the environment
-# can issue certificates on its own.
+# The cert-manager Cloudflare token is deliberately NOT created here either.
 #
-# Created ONLY IF ABSENT. There is also a OnePasswordItem of the same name, and
-# production -- which never runs this bootstrap -- depends on that one. Two
-# writers applying over each other is what removed this secret mid-rebuild and
-# silently broke every certificate, so this never overwrites: it exists purely so
-# a cold cluster can issue certificates before the operator reaches sync wave 0.
-%{ if bootstrap_cloudflare_token ~}
-kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
-if kubectl -n cert-manager get secret cloudflare-api-token >/dev/null 2>&1; then
-  log "cert-manager Cloudflare token already present; leaving it to its owner"
-else
-  log "Creating the cert-manager Cloudflare API token secret (cold-start fallback)"
-  kubectl -n cert-manager create secret generic cloudflare-api-token \
-    --from-file=api-token="$BOOTSTRAP_DIR/cloudflare-api-token"
-fi
-%{ else ~}
-log "WARNING: no Cloudflare token supplied; cert-manager cannot solve DNS01 and"
-log "         no TLS certificate will be issued."
-%{ endif ~}
+# It was, as a cold-start fallback so a fresh cluster could issue certificates
+# before the operator reached sync wave 0. Observed twice on real rebuilds: the
+# bootstrap creates it, the operator finds a secret it does not own, the secret
+# ends up deleted, and the operator then reports "already exists" and declines to
+# recreate it. Net result is no secret at all and no TLS anywhere until something
+# restarts the operator. Making the bootstrap create-if-absent did not help,
+# because the deletion is not caused by overwriting.
+#
+# One writer per secret. Both this and the registry pull secret are
+# OnePasswordItems, and the cost is a few minutes without certificates on a cold
+# cluster while Argo CD reaches wave 0.
 
 # The private registry pull secret is deliberately NOT created here. It is a
 # OnePasswordItem in k8s/apps/base/registry-credentials, so the operator owns it
