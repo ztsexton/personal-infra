@@ -76,25 +76,26 @@ curl -sS -o /dev/null -w '%{http_code}\n' -H "Authorization: Bearer $BT" \
 
 ### 2. Add ghcr.io to the 1Password item
 
-The pull secret is a `OnePasswordItem`
-(`k8s/apps/base/registry-credentials/onepassword-secret.yaml`), so **no kubectl
-is involved** — the operator creates it in both environments from the vault.
-
-Edit `vaults/Kubernetes/items/zot-docker-config` and set its `.dockerconfigjson`
-field to cover both registries:
-
-```json
-{"auths":{"zot.zachsexton.com":{"auth":"<base64 admin:zot-pw>"},"ghcr.io":{"auth":"<base64 ztsexton:ghp_...>"}}}
+```bash
+eval $(op signin)                                   # session must be in this shell
+./scripts/onepassword-registry-auth.sh show         # read-only
+./scripts/onepassword-registry-auth.sh add-ghcr
+./scripts/onepassword-registry-auth.sh verify
 ```
 
-Because it still authenticates to Zot, this is safe to do immediately and in any
-order: each environment keeps pulling from whichever registry its manifest names,
-and starts pulling from GHCR when the manifest changes, with no second edit.
+`add-ghcr` reads the classic PAT from `Personal Infra PAT Github Classic`, merges
+a `ghcr.io` entry into the existing `.dockerconfigjson` — preserving the Zot
+entry byte-for-byte — and writes it back to both vaults, reading each one back
+afterwards to confirm it landed. It refuses a fine-grained token, and never
+prints the value.
 
-The item already had a field named exactly `.dockerconfigjson`, which is what
-lets the operator emit a `kubernetes.io/dockerconfigjson` secret directly. What
-was missing was any CR referencing it — which is why this secret had only ever
-existed as a hand-run `kubectl` command, in no repository.
+No kubectl: the pull secret is a `OnePasswordItem`
+(`k8s/apps/base/registry-credentials`), so the operator applies the change in
+every cluster.
+
+Because the value still authenticates to Zot, this is safe to run immediately and
+in any order — each environment keeps pulling from whichever registry its
+manifests name, and switches to GHCR when they change, with no second edit.
 
 ### 3. Nothing to do for staging
 

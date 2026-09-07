@@ -4,6 +4,28 @@
 
 This repo manages personal project infrastructure via Terraform (Cloudflare DNS + Hetzner VPS) and Kubernetes manifests synced by ArgoCD. All application changes flow through ArgoCD GitOps — push manifest changes to `master` and ArgoCD auto-syncs.
 
+## Working conventions
+
+**Never hand over commands to paste into a terminal. Write a script.**
+
+Anything the user has to run goes in `scripts/` as a committed, executable
+script — not a fenced block of shell to copy. This applies to one-off and
+"just this once" operations too; those are exactly the ones that end up
+undocumented, and this repo has already been bitten by it (the registry pull
+secret existed only as a remembered `kubectl` command, in no repository, and
+had to be reconstructed from scratch during a rebuild).
+
+A script written for this purpose should:
+
+- take a subcommand rather than positional guesswork, and print usage with no arguments
+- have a read-only mode (`show`, `check`, `status`) that changes nothing
+- verify its preconditions and fail with the fix in the message, not a stack trace
+- back up or snapshot before mutating anything, and re-read afterwards to confirm
+  the change landed rather than trusting the exit code
+- never print secret values; report shape (which keys, which registries, lengths)
+
+Prefer extending an existing script over adding a near-duplicate.
+
 ## Architecture
 
 - **Servers**: Hetzner Cloud VPS — production (ccx23 dedicated CPU) + staging (cpx21 shared CPU), both in Ashburn VA
