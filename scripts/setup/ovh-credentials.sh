@@ -248,6 +248,91 @@ print("credentials work and carry every right terraform needs")
 PY
 }
 
+
+# The scopes a consumer key needs to order and manage a VPS through terraform.
+# A key's rules are fixed at creation and cannot be widened afterwards, which is
+# why a too-narrow key has to be replaced rather than edited.
+REQUIRED_RULES="/me/* /vps/* /order/* /services/*"
+
+# Ask OVH for a new consumer key with those scopes.
+#
+# POST /auth/credential is unauthenticated -- it carries the application key in
+# a header and is not signed -- so this works even when the current consumer key
+# grants nothing, which is exactly when you need it.
+#
+# It cannot be fully headless: the key comes back in pendingValidation and only
+# becomes usable after a human opens the validation URL and logs in. There is no
+# token, however privileged, that skips that step; it is what stops an
+# application key alone from being enough to act on an account.
+cmd_request() {
+  local env="${1:-}"
+  local ak=""
+
+  # Prefer an env's tfvars, so this works with no 1Password session.
+  if [ -n "$env" ]; then
+    local tfvars="$REPO/terraform/envs/$env/terraform.tfvars"
+    [ -f "$tfvars" ] || die "no such environment tfvars: $tfvars"
+    ak=$(grep -oP '^ovh_application_key\s*=\s*"\K[^"]*' "$tfvars" | head -1)
+  fi
+  if [ -z "$ak" ]; then
+    need_session
+    ak=$(read_creds | sed -n 2p)
+  fi
+  [ -n "$ak" ] || die "no application key found -- pass an env name, or put one in 1Password"
+
+  step "requesting a consumer key for: $REQUIRED_RULES"
+  local result
+  result=$(AK="$ak" RULES="$REQUIRED_RULES" "$PY" - <<'PYEOF'
+import json, os, sys, urllib.error, urllib.request
+rules = [{"method": m, "path": p}
+         for p in os.environ["RULES"].split()
+         for m in ("GET", "POST", "PUT", "DELETE")]
+body = json.dumps({"accessRules": rules, "redirection": "https://us.ovhcloud.com/"})
+req = urllib.request.Request("https://api.us.ovhcloud.com/1.0/auth/credential",
+                             method="POST", data=body.encode())
+req.add_header("X-Ovh-Application", os.environ["AK"])
+req.add_header("Content-Type", "application/json")
+try:
+    r = json.load(urllib.request.urlopen(req, timeout=30))
+except urllib.error.HTTPError as e:
+    sys.exit("OVH refused the request: %d %s" % (e.code, e.read().decode()[:200]))
+print(r["consumerKey"])
+print(r["validationUrl"])
+PYEOF
+)
+  local ck url
+  ck=$(sed -n 1p <<<"$result")
+  url=$(sed -n 2p <<<"$result")
+  [ -n "$ck" ] && [ -n "$url" ] || die "no consumer key came back"
+
+  if [ -n "$env" ]; then
+    local tfvars="$REPO/terraform/envs/$env/terraform.tfvars"
+    cp "$tfvars" "$tfvars.bak"
+    TFVARS="$tfvars" VNAME=ovh_consumer_key VVALUE="$ck" "$PY" - <<'PYEOF'
+import json, os, re
+p, n, v = os.environ["TFVARS"], os.environ["VNAME"], os.environ["VVALUE"]
+s = open(p).read()
+line = "%s = %s" % (n, json.dumps(v))
+s = (re.sub(r"^%s\s*=.*$" % re.escape(n), line, s, count=1, flags=re.M)
+     if re.search(r"^%s\s*=" % re.escape(n), s, re.M)
+     else s.rstrip("\n") + "\n" + line + "\n")
+open(p, "w").write(s)
+PYEOF
+    green "wrote the new consumer key into terraform/envs/$env/terraform.tfvars"
+    warn "it does nothing until you validate it"
+  else
+    warn "no env given, so the key was not saved. Put this in 1Password:"
+    printf '  consumer key: %s\n' "$ck"
+  fi
+
+  echo
+  step "open this and log in to activate it"
+  printf '  %s\n' "$url"
+  echo
+  echo "Then confirm it worked:"
+  echo "  $0 check"
+}
+
 cmd_write() {
   local env="${1:-}"
   [ -n "$env" ] || die "usage: $0 write <env>   (e.g. staging-ovh)"
@@ -291,6 +376,7 @@ PY
 case "${1:-}" in
   show)  cmd_show ;;
   check) cmd_check ;;
+  request) shift; cmd_request "$@" ;;
   write) shift; cmd_write "$@" ;;
   *)
     cat >&2 <<EOF
@@ -299,6 +385,10 @@ usage: $0 <command>
   show          field names and sizes in the 1Password item (never values)
   check         which endpoint the credentials belong to, and whether the
                 consumer key carries every right terraform needs to order a VPS
+  request [env] ask OVH for a NEW consumer key carrying every scope terraform
+                needs, and save it. Needs only the application key, so it works
+                when the current key grants nothing. You must then open the
+                validation URL it prints and log in
   write <env>   write them into terraform/envs/<env>/terraform.tfvars
 
 Vault comes from OVH_VAULT, default "$VAULT".
