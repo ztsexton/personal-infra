@@ -11,8 +11,11 @@ spec:
     repoURL: https://github.com/ztsexton/personal-infra.git
     path: k8s/postgres/overlays/production
     targetRevision: HEAD
-    directory:
-      recurse: true
+    # No `directory:` block. It forces Argo into plain-directory mode, where
+    # kustomization.yaml is read as a manifest to apply rather than as a build
+    # directive -- the sync then fails with "one or more synchronization tasks
+    # are not valid" and a phantom Kustomization/ resource. Every other app
+    # pointing at an overlay leaves this out and lets Argo detect kustomize.
   destination:
     server: https://kubernetes.default.svc
     namespace: web
