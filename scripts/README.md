@@ -36,6 +36,7 @@ Occasional, mostly one-time. You will not run these in a normal week.
 | `onepassword-connect.sh` | Creating a 1Password Connect server and token for an environment |
 | `ovh-credentials.sh` | Finding the OVH API credentials in 1Password, proving they can order, writing them to tfvars |
 | `ovh-api.py` | Signed OVH API calls. Called by the two scripts above, not directly |
+| `app-auth-secret.sh` | Creating or rotating an app's session-signing secret in 1Password. Generates it locally and writes it via a JSON template, so the value never appears in a command line |
 | `registry-auth.sh` | Changing the container-registry credential in 1Password |
 | `hcloud-primary-ip.sh` | Listing Hetzner primary IPs, or protecting one from deletion |
 | `scalr-workspace.sh` | Reading or changing Scalr workspace settings |
