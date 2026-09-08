@@ -15,6 +15,22 @@ configs:
 server:
   service:
     type: ClusterIP
+  # Also passed as an argument, not only through configs.params above.
+  #
+  # params lands in the argocd-cmd-params-cm ConfigMap, which argocd-server reads
+  # once at process start. Changing it therefore does nothing until something
+  # restarts the pod, and nothing does -- so a cluster can sit for months with
+  # the setting present in git, present in the ConfigMap, and not in effect.
+  # That is exactly what happened to production: server.insecure: true in the
+  # values, argocd-cmd-params-cm saying true, and a pod from 2026-03-10 still
+  # serving TLS, so Traefik's plaintext requests got a 307 and the ingress
+  # returned 500.
+  #
+  # An extraArg is part of the Deployment's pod template, so changing it rolls
+  # the pod by itself. The setting and the restart that makes it real stop being
+  # two separate things.
+  extraArgs:
+    - --insecure
 
 # Single-node cluster: no point scheduling replicas that cannot spread.
 redis-ha:
