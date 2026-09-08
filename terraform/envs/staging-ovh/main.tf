@@ -106,6 +106,11 @@ resource "ovh_vps" "this" {
 }
 
 locals {
+  # Everything the provisioners run needs root, and the account we can reach is
+  # not root. Empty when it is, so this stays correct if the image ever changes.
+  sudo       = var.ssh_user == "root" ? "" : "sudo "
+  remote_dir = var.ssh_user == "root" ? "/root" : "/home/${var.ssh_user}"
+
   # Both are discovered from the API after the order lands, so neither exists on
   # the first apply. The k3s step waits for both.
   ready = var.vps_image_id != "" && var.vps_host != ""
@@ -137,22 +142,24 @@ resource "null_resource" "k3s" {
   connection {
     type        = "ssh"
     host        = var.vps_host
-    user        = "root"
+    user        = var.ssh_user
     private_key = tls_private_key.this.private_key_openssh
     timeout     = "10m"
   }
 
+  # Uploaded to the connecting user's home directory: as a non-root user there
+  # is nowhere else writable, and the script does not care where it runs from.
   provisioner "file" {
     content     = local.install_k3s
-    destination = "/root/install-k3s.sh"
+    destination = "${local.remote_dir}/install-k3s.sh"
   }
 
   # remote-exec does not run under `set -e`, so a failure partway through still
   # reports success unless the exit code is captured deliberately.
   provisioner "remote-exec" {
     inline = [
-      "chmod 0700 /root/install-k3s.sh",
-      "/root/install-k3s.sh 2>&1 | tee -a /var/log/k3s-bootstrap.log; exit $${PIPESTATUS[0]}",
+      "chmod 0700 ${local.remote_dir}/install-k3s.sh",
+      "${local.sudo}bash -c '${local.remote_dir}/install-k3s.sh 2>&1 | tee -a /var/log/k3s-bootstrap.log; exit $${PIPESTATUS[0]}'",
     ]
   }
 }

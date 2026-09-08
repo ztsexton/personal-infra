@@ -416,13 +416,18 @@ keyfile() {
   printf '%s' "$f"
 }
 
+# OVH's Ubuntu image installs the key for `ubuntu`, not root, and disables root
+# SSH entirely. Connecting as root fails with "no supported methods remain",
+# which looks exactly like the key never having been installed.
+ssh_user() { local u; u=$(tfvar ssh_user); printf '%s' "${u:-ubuntu}"; }
+
 ssh_to() {
   local host; host=$(tfvar vps_host)
   [ -n "$host" ] || die "no address known -- run: $0 up"
   local key; key=$(keyfile)
   ssh-keygen -R "$host" >/dev/null 2>&1 || true
   ssh -i "$key" -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes \
-      -o ConnectTimeout=15 "root@$host" "$@"
+      -o ConnectTimeout=15 "$(ssh_user)@$host" "$@"
 }
 
 cmd_kubeconfig() {
@@ -430,7 +435,8 @@ cmd_kubeconfig() {
   local host; host=$(tfvar vps_host)
   local out="$REPO/kubeconfig-staging-ovh.yaml" tmp
   tmp=$(mktemp)
-  ssh_to cat /etc/rancher/k3s/k3s.yaml > "$tmp" || die "could not read the kubeconfig over SSH"
+  # sudo: k3s writes this mode 600 owned by root.
+  ssh_to sudo cat /etc/rancher/k3s/k3s.yaml > "$tmp" || die "could not read the kubeconfig over SSH"
   grep -q '^apiVersion:' "$tmp" || { rm -f "$tmp"; die "what came back is not a kubeconfig"; }
   sed "s/127.0.0.1/$host/" "$tmp" > "$out"
   rm -f "$tmp"; chmod 600 "$out"

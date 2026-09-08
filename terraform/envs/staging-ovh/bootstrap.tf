@@ -51,47 +51,46 @@ resource "null_resource" "cluster_bootstrap" {
   connection {
     type        = "ssh"
     host        = var.vps_host
-    user        = "root"
+    user        = var.ssh_user
     private_key = tls_private_key.this.private_key_openssh
     timeout     = "10m"
   }
 
-  # No `cloud-init status --wait` here: there is no cloud-init on this image.
   provisioner "remote-exec" {
-    inline = ["install -d -m 0700 /root/bootstrap"]
+    inline = ["install -d -m 0700 ${local.remote_dir}/bootstrap"]
   }
 
   provisioner "file" {
     content     = local.bootstrap_script
-    destination = "/root/bootstrap/bootstrap-cluster.sh"
+    destination = "${local.remote_dir}/bootstrap/bootstrap-cluster.sh"
   }
 
   provisioner "file" {
     content     = local.argocd_values
-    destination = "/root/bootstrap/argocd-values.yaml"
+    destination = "${local.remote_dir}/bootstrap/argocd-values.yaml"
   }
 
   provisioner "file" {
     content     = local.root_app
-    destination = "/root/bootstrap/root-app.yaml"
+    destination = "${local.remote_dir}/bootstrap/root-app.yaml"
   }
 
   # Written as files rather than interpolated into the script, so JSON
   # containing quotes cannot break out of the shell quoting.
   provisioner "file" {
     content     = local.bootstrap_onepassword ? var.onepassword_credentials_json : "unused"
-    destination = "/root/bootstrap/1password-credentials.json"
+    destination = "${local.remote_dir}/bootstrap/1password-credentials.json"
   }
 
   provisioner "file" {
     content     = local.bootstrap_onepassword ? var.onepassword_connect_token : "unused"
-    destination = "/root/bootstrap/op-connect-token"
+    destination = "${local.remote_dir}/bootstrap/op-connect-token"
   }
 
   provisioner "remote-exec" {
     inline = [
-      "chmod 0600 /root/bootstrap/*",
-      "chmod 0700 /root/bootstrap/bootstrap-cluster.sh",
+      "chmod 0600 ${local.remote_dir}/bootstrap/*",
+      "chmod 0700 ${local.remote_dir}/bootstrap/bootstrap-cluster.sh",
       # remote-exec runs inline commands as a plain /bin/sh script with no
       # `set -e`, so only the last command's status reaches Terraform. The
       # credentials must be shredded either way, so the exit code is captured
@@ -99,14 +98,15 @@ resource "null_resource" "cluster_bootstrap" {
       # successful apply.
       <<-EOT
         rc=0
-        /root/bootstrap/bootstrap-cluster.sh >>/var/log/cluster-bootstrap.log 2>&1 || rc=$?
+        ${local.sudo}${local.remote_dir}/bootstrap/bootstrap-cluster.sh >>/tmp/cluster-bootstrap.log 2>&1 || rc=$?
+        ${local.sudo}cp /tmp/cluster-bootstrap.log /var/log/cluster-bootstrap.log 2>/dev/null || true
         if [ "$rc" -eq 0 ]; then
-          tail -n 20 /var/log/cluster-bootstrap.log
+          tail -n 20 /tmp/cluster-bootstrap.log
         else
           echo "cluster bootstrap failed (exit $rc); last 100 log lines:"
-          tail -n 100 /var/log/cluster-bootstrap.log
+          tail -n 100 /tmp/cluster-bootstrap.log
         fi
-        secrets="/root/bootstrap/op-connect-token /root/bootstrap/1password-credentials.json /root/bootstrap/op-creds.b64"
+        secrets="${local.remote_dir}/bootstrap/op-connect-token ${local.remote_dir}/bootstrap/1password-credentials.json ${local.remote_dir}/bootstrap/op-creds.b64"
         shred -u $secrets 2>/dev/null || rm -f $secrets
         exit $rc
       EOT

@@ -217,3 +217,16 @@ variable "manage_dns" {
   type        = bool
   default     = false
 }
+
+variable "ssh_user" {
+  description = <<-EOT
+    The account the SSH key is installed for.
+
+    OVH's Ubuntu image provisions `ubuntu` with passwordless sudo and leaves
+    root SSH disabled, so public_ssh_key lands on that account and not root.
+    Connecting as root fails with "no supported methods remain", which reads
+    like the key was never installed.
+  EOT
+  type        = string
+  default     = "ubuntu"
+}
