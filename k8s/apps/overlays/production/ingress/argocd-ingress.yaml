@@ -18,5 +18,11 @@ spec:
         backend:
           service:
             name: argocd-server
+            # 80, not 443. argocd-server runs with server.insecure, so it serves
+            # plain HTTP on 8080; the Service maps both 80 and 443 to that same
+            # port, but Traefik treats a 443 backend as HTTPS and its handshake
+            # against a plaintext server fails with a 502. Staging has always
+            # used 80, which is why staging's Argo UI worked and this one did
+            # not.
             port:
-              number: 443
+              number: 80
