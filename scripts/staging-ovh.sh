@@ -119,26 +119,27 @@ inherit_shared_vars() {
 
 service_name() { tf output -raw service_name 2>/dev/null | grep -E '^[a-z0-9.-]+$' || true; }
 
-cmd_plan() {
-  preflight
-  step "what would be ordered"
+# What the order will actually be, and what it costs. Read from OVH's public
+# catalog on every run rather than written down here, so it cannot go stale when
+# OVH reprices -- which they did in October 2026.
+show_order() {
   local pc dc os_ mode dur
-  pc=$(tfvar vps_plan_code);   pc=${pc:-vps-2027-model1}
-  dc=$(tfvar vps_datacenter);  dc=${dc:-US-EAST-VA}
-  os_=$(tfvar vps_os);         os_=${os_:-Ubuntu 24.04}
+  pc=$(tfvar vps_plan_code);      pc=${pc:-vps-2027-model1}
+  dc=$(tfvar vps_datacenter);     dc=${dc:-US-EAST-VA}
+  os_=$(tfvar vps_os);            os_=${os_:-Ubuntu 24.04}
   mode=$(tfvar vps_pricing_mode); mode=${mode:-default}
-  dur=$(tfvar vps_duration);   dur=${dur:-P1M}
+  dur=$(tfvar vps_duration);      dur=${dur:-P1M}
+
+  step "what would be ordered"
   printf '  plan          %s\n  datacenter    %s\n  os            %s\n  pricing       %s (%s)\n' \
     "$pc" "$dc" "$os_" "$mode" "$dur"
 
-  # Straight from the public catalog rather than a number written in a comment,
-  # so it cannot go stale.
   step "price, from OVH's public catalog"
-  PLAN="$pc" MODE="$mode" python3 - <<'PY'
+  PLAN="$pc" MODE="$mode" DUR="$dur" python3 - <<'PYEOF'
 import json, os, urllib.request
 url = "https://api.us.ovhcloud.com/1.0/order/catalog/public/vps?ovhSubsidiary=US"
 d = json.load(urllib.request.urlopen(url, timeout=60))
-plan, mode = os.environ["PLAN"], os.environ["MODE"]
+plan, mode, dur = os.environ["PLAN"], os.environ["MODE"], os.environ["DUR"]
 total = 0.0
 def price_of(entries, code):
     for e in entries:
@@ -150,14 +151,33 @@ def price_of(entries, code):
     return None, None
 p, name = price_of(d["plans"], plan)
 if p is None:
-    print("  plan %s has no %s pricing" % (plan, mode)); raise SystemExit(1)
-print("  %-38s $%.2f/mo" % (name, p)); total += p
-for addon in ("option-linux", "option-storage-local-2027-model1", "option-auto-backup-2027-1-model1"):
+    print("  plan %s has no %s pricing" % (plan, mode))
+    raise SystemExit(1)
+print("  %-38s $%7.2f" % (name, p))
+total += p
+for addon in ("option-linux", "option-storage-local-2027-model1",
+              "option-auto-backup-2027-1-model1"):
     ap, aname = price_of(d.get("addons", []), addon)
     if ap is not None:
-        print("  %-38s $%.2f/mo" % ((aname or addon)[:38], ap)); total += ap
-print("  %-38s $%.2f/mo" % ("TOTAL", total))
-PY
+        print("  %-38s $%7.2f" % ((aname or addon)[:38], ap))
+        total += ap
+print("  %-38s %s" % ("", "-" * 8))
+per = {"P1M": "month", "P1Y": "year", "P6M": "6 months"}.get(dur, dur)
+print("  %-38s $%7.2f  per %s" % ("TOTAL", total, per))
+if mode == "default":
+    print()
+    print("  Month to month -- cancellable at the end of any month.")
+    print("  A 12-month commitment would be cheaper but can only be exited")
+    print("  early by paying out the remainder.")
+else:
+    print()
+    print("  COMMITTED. Cancelling early means paying out the rest of the term.")
+PYEOF
+}
+
+cmd_plan() {
+  preflight
+  show_order
   echo
   step "terraform plan"
   tf plan -input=false
@@ -168,10 +188,11 @@ cmd_up() {
 
   local sn; sn=$(service_name)
   if [ -z "$sn" ]; then
-    warn "This ORDERS a VPS and charges the payment method on the OVH account."
-    warn "It is a subscription: there is no hourly billing and no spin-down."
-    cmd_plan >/dev/null 2>&1 || true
     echo
+    show_order
+    echo
+    warn "This ORDERS the above and charges the payment method on the OVH account."
+    warn "It is a subscription: there is no hourly billing and no spin-down."
     read -r -p "Type 'order' to place it: " reply
     [ "$reply" = "order" ] || die "aborted"
 
