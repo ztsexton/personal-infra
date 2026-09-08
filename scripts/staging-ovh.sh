@@ -42,6 +42,26 @@ tf() { terraform -chdir="$TF_DIR" "$@"; }
 
 tfvar() { python3 "$REPO/scripts/lib/tfvars.py" get "$TFVARS" "$1" 2>/dev/null || true; }
 
+# Variables with a default in variables.tf are usually absent from tfvars, so a
+# bare `tfvar` returns empty for them. These mirror that file. Read through
+# here, never directly, or two call sites drift: show_order defaulted vps_os and
+# cmd_up did not, which failed the image match against an empty string after the
+# VPS was already ordered.
+tfvar_or() { # name default
+  local v; v=$(tfvar "$1")
+  printf '%s' "${v:-$2}"
+}
+vps_setting() { # name
+  case "$1" in
+    vps_plan_code)    tfvar_or vps_plan_code    "vps-2027-model1" ;;
+    vps_datacenter)   tfvar_or vps_datacenter   "US-EAST-VA" ;;
+    vps_os)           tfvar_or vps_os           "Ubuntu 24.04" ;;
+    vps_pricing_mode) tfvar_or vps_pricing_mode "default" ;;
+    vps_duration)     tfvar_or vps_duration     "P1M" ;;
+    *) tfvar "$1" ;;
+  esac
+}
+
 set_var() { # name value
   python3 "$REPO/scripts/lib/tfvars.py" set "$TFVARS" "$1" "$2"
 }
@@ -156,11 +176,11 @@ except Exception:
 # OVH reprices -- which they did in October 2026.
 show_order() {
   local pc dc os_ mode dur
-  pc=$(tfvar vps_plan_code);      pc=${pc:-vps-2027-model1}
-  dc=$(tfvar vps_datacenter);     dc=${dc:-US-EAST-VA}
-  os_=$(tfvar vps_os);            os_=${os_:-Ubuntu 24.04}
-  mode=$(tfvar vps_pricing_mode); mode=${mode:-default}
-  dur=$(tfvar vps_duration);      dur=${dur:-P1M}
+  pc=$(vps_setting vps_plan_code)
+  dc=$(vps_setting vps_datacenter)
+  os_=$(vps_setting vps_os)
+  mode=$(vps_setting vps_pricing_mode)
+  dur=$(vps_setting vps_duration)
 
   step "what would be ordered"
   printf '  plan          %s\n  datacenter    %s\n  os            %s\n  pricing       %s (%s)\n' \
@@ -263,11 +283,11 @@ for ip in json.load(sys.stdin):
   green "address: $host"
   set_var vps_host "$host"
 
-  step "matching '$(tfvar vps_os)' against the images available to this VPS"
+  step "matching '$(vps_setting vps_os)' against the images available to this VPS"
   # The listed ids are opaque, so each one has to be fetched to learn its name.
   local ids want match="" name
   ids=$(api GET "/vps/$sn/images/available" | python3 -c 'import sys,json;print(" ".join(json.load(sys.stdin)))')
-  want=$(tfvar vps_os)
+  want=$(vps_setting vps_os)
   for id in $ids; do
     name=$(api GET "/vps/$sn/images/available/$id" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("name",""))')
     printf '  %-40s %s\n' "$name" "$id"
