@@ -117,7 +117,39 @@ inherit_shared_vars() {
   fi
 }
 
-service_name() { tf output -raw service_name 2>/dev/null | grep -E '^[a-z0-9.-]+$' || true; }
+# Read state, not outputs.
+#
+# Outputs are only written by a SUCCESSFUL apply. The first real order failed
+# after delivery on a provider bug, which left the VPS in state and no outputs
+# at all -- so an outputs-based check reported "nothing ordered" and `up`
+# offered to order a second one. On an hourly instance that is a wasted hour; on
+# a subscription it is a second monthly bill.
+service_name() {
+  local sn
+  sn=$(tf state show ovh_vps.this 2>/dev/null \
+       | grep -oP '^\s*service_name\s*=\s*"\K[^"]+' || true)
+  [ -n "$sn" ] || sn=$(tf output -raw service_name 2>/dev/null | grep -E '^[a-z0-9.-]+$' || true)
+  printf '%s' "$sn"
+}
+
+# Independent of terraform entirely: does the account already hold a VPS we
+# named? State can be lost or rolled back; the bill cannot. This is the last
+# thing between a corrupted state file and paying for two.
+existing_by_display_name() {
+  local want="${1:-staging-ovh-k3s}"
+  api GET /vps 2>/dev/null | python3 -c '
+import json, sys
+try:
+    print(" ".join(json.load(sys.stdin)))
+except Exception:
+    pass' | tr ' ' '\n' | while read -r sn; do
+    [ -n "$sn" ] || continue
+    if api GET "/vps/$sn" 2>/dev/null \
+       | python3 -c 'import json,sys; d=json.load(sys.stdin); sys.exit(0 if d.get("displayName")==sys.argv[1] else 1)' "$want"; then
+      printf '%s\n' "$sn"
+    fi
+  done
+}
 
 # What the order will actually be, and what it costs. Read from OVH's public
 # catalog on every run rather than written down here, so it cannot go stale when
@@ -188,6 +220,16 @@ cmd_up() {
 
   local sn; sn=$(service_name)
   if [ -z "$sn" ]; then
+    # State says nothing is ordered. Verify that against OVH before believing
+    # it -- see existing_by_display_name.
+    local stray; stray=$(existing_by_display_name | head -1)
+    if [ -n "$stray" ]; then
+      red "OVH already has a VPS named 'staging-ovh-k3s': $stray"
+      red "but it is not in terraform state, so ordering now would buy a second."
+      red "Adopt the existing one instead:"
+      red "  terraform -chdir=$TF_DIR import ovh_vps.this $stray"
+      exit 1
+    fi
     echo
     show_order
     echo
