@@ -48,6 +48,19 @@ module "env" {
   manage_primary_ip = false
   bootstrap_cluster = false
 
+  # This server must never be replaced.
+  #
+  # It is billed at the rate it was created on. Hetzner raised cloud prices on
+  # 15 June 2026 and a replacement would be a new order at today's rate, so
+  # destroying and recreating this box costs real money every month afterwards
+  # for exactly the same machine. That makes "we will fix it on the next
+  # rebuild" a non-answer for anything on this cluster -- there is no next
+  # rebuild.
+  #
+  # delete_protection is enforced by Hetzner, so it survives a lost state file
+  # or an apply from the wrong directory in a way `prevent_destroy` would not.
+  protect_server = true
+
   ssh_private_key              = var.ssh_private_key
   k3s_token                    = var.k3s_token
   argocd_admin_password_bcrypt = var.argocd_admin_password_bcrypt

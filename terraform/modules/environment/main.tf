@@ -77,6 +77,11 @@ resource "hcloud_server" "this" {
     type        = "vps"
   }
 
+  # Hetzner refuses delete and rebuild API calls while these are set. The
+  # provider requires them to move together.
+  delete_protection  = var.protect_server
+  rebuild_protection = var.protect_server
+
   # Both of these are ForceNew on hcloud_server, and both would otherwise destroy
   # and recreate a perfectly healthy server:
   #

@@ -11,7 +11,8 @@ elsewhere.
 
 | Script | What it does |
 | ------ | ------------ |
-| `staging.sh` | The lifecycle. `up`, `down`, `relocate`, `status`, `verify`, `ssh`, `kubeconfig`, `nuke` |
+| `staging.sh` | Hetzner staging, currently a template with nothing deployed. The lifecycle. `up`, `down`, `relocate`, `status`, `verify`, `ssh`, `kubeconfig`, `nuke` |
+| `argocd.sh` | `status`, `reload`, `unstick` — whether Argo CD's ConfigMap settings are actually in force, and sync operations that will never finish |
 | `certs.sh` | `status`, `unstick`, `watch` — certificates and stuck ACME challenges |
 | `unstick-rollout.sh` | `status`, `fix` — StatefulSet rollouts that can never finish because the pod blocking them is the one the old spec produced |
 | `secrets.sh` | `status`, `sources`, `resync` — what exists, where it comes from, what is orphaned |

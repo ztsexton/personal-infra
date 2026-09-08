@@ -28,9 +28,15 @@ Prefer extending an existing script over adding a near-duplicate.
 
 ## Architecture
 
-- **Servers**: Hetzner Cloud VPS — production (ccx23 dedicated CPU, Ashburn VA) + staging (cx23 shared CPU, Falkenstein DE).
-  Hetzner's June 2026 increase fell almost entirely on the US locations, so staging runs in the EU: the same class of box is
-  $6.49/mo in `fsn1` against $37.49 in `ash`. Production stays in the US for latency; relocating it would save $1.50/mo.
+- **Servers**: production is a Hetzner ccx23 in Ashburn VA. Staging is an **OVH VPS-1** in US-EAST-VA
+  (`vps-2027-model1`, 2 vCore / 4GB / 40GB, $5.85/mo including the mandatory backup addon), down from
+  $37.49/mo on Hetzner `ash`.
+- **Production must never be rebuilt.** It is billed at the rate it was created on, and Hetzner raised
+  cloud prices on 15 June 2026 — a replacement would be a new order at today's rate, permanently more
+  expensive for the identical machine. `protect_server = true` sets Hetzner's own `delete_protection`,
+  which holds even if the state file is lost. Removing the server is a deliberate two-step: set it
+  false, apply, then destroy. This also means "we'll fix it on the next rebuild" is not an answer for
+  anything on that cluster — there is no next rebuild, so fixes have to reach it through Argo CD.
 - **Kubernetes**: k3s (single-node per environment, built-in Traefik disabled)
 - **GitOps**: ArgoCD with app-of-apps pattern (separate root per environment)
 - **Ingress**: Traefik (Helm-managed, 2 replicas, LoadBalancer via MetalLB)
@@ -47,9 +53,9 @@ Prefer extending an existing script over adding a near-duplicate.
 ```text
 terraform/modules/environment/      # Reusable env: primary IP, server, DNS, cluster bootstrap
 terraform/envs/production/          # Production root (state in Scalr, applied via Scalr)
-terraform/envs/staging/             # Staging root (local state, applied locally)
+terraform/envs/staging/             # Hetzner staging. TEMPLATE ONLY -- no resources exist; see below
+terraform/envs/staging-ovh/         # Staging as it actually runs: an OVH VPS-1
 terraform/envs/sandbox/             # Throwaway root for testing create/destroy locally
-terraform/envs/staging-ovh/         # OVH VPS trial: same k3s, different provider (no DNS, no Argo)
 k8s/argocd/production/              # ArgoCD Application CRs for production
 k8s/argocd/staging/                 # ArgoCD Application CRs for staging
 k8s/apps/base/                      # Shared app manifests (deployments, services, secrets)
@@ -197,7 +203,21 @@ manifests stays valid and `up` needs no manual step. Only the Hetzner and
 Cloudflare credentials are supplied by hand; the SSH keypair, k3s token and Argo
 CD password are generated.
 
-### The OVH trial
+### Hetzner staging is a template, not a deployment
+
+`terraform/envs/staging/` describes a complete Hetzner staging environment and
+**nothing it describes exists**. The server, primary IP, private network and SSH
+key were all destroyed once staging moved to OVH; an idle primary IP alone bills
+$0.60/mo for nothing.
+
+It is kept because it is the only worked example of the Hetzner side of this
+module — primary IPs that survive a rebuild, private networking, `staging.sh
+up/down/relocate`. Bringing it back is `./scripts/staging.sh up`, which
+allocates a fresh address and rewrites the manifests that hardcode it. Note that
+doing so would take the staging hostnames back from OVH, since both roots claim
+the same DNS records.
+
+### The OVH staging environment
 
 `terraform/envs/staging-ovh/` orders an OVH VPS-1 and puts the same k3s on it,
 to find out whether OVH can host this stack before anything depends on it.

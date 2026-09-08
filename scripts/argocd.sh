@@ -122,8 +122,69 @@ cmd_reload() {
   cmd_status
 }
 
+# Sync operations that will never finish.
+#
+# Argo CD syncs with PruneLast=true, so deletions happen only after every other
+# resource reports healthy. If one of those resources is unhealthy BECAUSE of a
+# change waiting in the same sync, the two block each other and the operation
+# sits in Running indefinitely -- there is no timeout and no error.
+#
+# Production hit exactly that: Zot was removed from git and needed pruning, the
+# Argo CD ingress was unhealthy (502) and needed the fix that was queued behind
+# the prune, and the sync ran for twenty hours. Terminating the operation lets
+# auto-sync start a fresh one against the current revision.
+cmd_unstick() {
+  preflight
+  local stuck
+  stuck=$(k get applications -o json 2>/dev/null | "${PY:-python3}" -c '
+import sys, json, datetime as dt
+now = dt.datetime.now(dt.timezone.utc)
+for a in json.load(sys.stdin).get("items", []):
+    op = (a.get("status") or {}).get("operationState") or {}
+    if op.get("phase") != "Running":
+        continue
+    started = op.get("startedAt")
+    age = ""
+    if started:
+        d = now - dt.datetime.fromisoformat(started.replace("Z", "+00:00"))
+        # Under ten minutes it is probably just working.
+        if d.total_seconds() < 600:
+            continue
+        age = "%dh%dm" % (d.total_seconds() // 3600, (d.total_seconds() % 3600) // 60)
+    print("%s|%s|%s" % (a["metadata"]["name"], age, (op.get("message") or "")[:70]))')
+
+  if [ -z "$stuck" ]; then
+    green "no sync has been running long enough to be considered stuck"
+    return 0
+  fi
+
+  step "sync operations running for over ten minutes"
+  while IFS='|' read -r app age msg; do
+    printf '  %-22s running %s
+    %s
+' "$app" "$age" "$msg"
+  done <<<"$stuck"
+
+  echo
+  warn "Terminating these lets auto-sync start again from the current revision."
+  warn "Nothing is deleted and no manifest is applied by this -- it only ends the"
+  warn "stalled attempt."
+  read -r -p "Type 'unstick' to continue: " reply
+  [ "$reply" = "unstick" ] || die "aborted"
+
+  while IFS='|' read -r app age msg; do
+    echo "terminating $app"
+    k patch application "$app" --type merge \
+      -p '{"status":{"operationState":{"phase":"Terminating"}}}' >/dev/null
+  done <<<"$stuck"
+
+  echo
+  green "terminated. Argo CD will re-sync within its refresh interval."
+}
+
 case "${1:-}" in
   status) cmd_status ;;
+  unstick) cmd_unstick ;;
   reload) cmd_reload ;;
   *)
     cat >&2 <<EOF

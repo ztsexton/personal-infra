@@ -27,6 +27,10 @@ crash.log
 # Sensitive auto-generated files
 terraform.tfstate
 terraform.tfstate.backup
+# Terraform writes timestamped backups as terraform.tfstate.<epoch>.backup,
+# which *.tfstate.backup does not match. These hold full state, private keys
+# included.
+*.tfstate.*.backup
 sandbox.tfstate
 *.log
 

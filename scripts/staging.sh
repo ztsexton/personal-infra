@@ -231,7 +231,15 @@ cmd_nuke() {
   read -r -p "Type 'nuke' to continue: " reply
   [ "$reply" = "nuke" ] || die "aborted"
 
-  tf destroy -input=false -auto-approve -target="$SERVER"
+  # Only when there is one. `terraform destroy -target` against an address that
+  # is not in state does not narrow the plan to nothing -- it plans the whole
+  # environment, which then fails on the address's prevent_destroy before
+  # release_address ever runs.
+  if tf state list 2>/dev/null | grep -qx "$SERVER"; then
+    tf destroy -input=false -auto-approve -target="$SERVER"
+  else
+    step "no server to destroy; releasing the address only"
+  fi
   release_address
 }
 
@@ -250,7 +258,7 @@ state_ip_location() {
 # back rather than trusting curl's exit code.
 release_address() {
   local id ip
-  id=$(tf state show "$IP_ADDR" 2>/dev/null | grep -oP '^\s*id\s*=\s*"\K[0-9]+' || true)
+  id=$(tf state show "$IP_ADDR" 2>/dev/null | grep -oP '^\s*id\s*=\s*"?\K[0-9]+' || true)
   ip=$(current_ip)
   [ -n "$id" ] || die "could not determine the primary IP id"
 

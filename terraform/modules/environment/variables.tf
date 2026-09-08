@@ -186,3 +186,21 @@ variable "manage_primary_ip" {
 locals {
   _validate_primary_ip_name = var.manage_primary_ip && var.primary_ip_name == "" ? tobool("primary_ip_name must be set when manage_primary_ip is true") : true
 }
+
+variable "protect_server" {
+  description = <<-EOT
+    Refuse to delete or rebuild this server, enforced by Hetzner rather than by
+    Terraform.
+
+    `prevent_destroy` cannot be used here: it takes a literal, and this module
+    also builds environments that must stay destroyable. Hetzner's own
+    delete_protection is per-server, so it can be a variable -- and it holds even
+    if the state file is lost, the wrong directory is applied, or someone runs
+    a destroy by hand. Terraform's guard only exists inside Terraform.
+
+    Turning this on means a deliberate two-step to remove the server: set it
+    false, apply, then destroy.
+  EOT
+  type        = bool
+  default     = false
+}
