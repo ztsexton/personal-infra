@@ -50,6 +50,30 @@ log "No node network configured; node-to-node ports stay closed (single node)"
 
 echo 'y' | ufw enable
 
+# --- SSH ----------------------------------------------------------------
+# Key-only. Hetzner's images already ship this way, but OVH sets a root
+# password on every reinstall and emails it, and the provider's
+# doNotSendPassword option cannot be used -- it breaks the apply whether it is
+# set or left null (see terraform/envs/staging-ovh/main.tf). An emailed root
+# password only matters if password authentication is accepted, so it is not.
+if [ -d /etc/ssh ]; then
+  log "Disabling SSH password authentication"
+  if [ -d /etc/ssh/sshd_config.d ]; then
+    printf 'PasswordAuthentication no\nPermitRootLogin prohibit-password\nKbdInteractiveAuthentication no\n' \
+      > /etc/ssh/sshd_config.d/99-key-only.conf
+  else
+    printf '\nPasswordAuthentication no\nPermitRootLogin prohibit-password\n' >> /etc/ssh/sshd_config
+  fi
+  # Reload only once the new config parses. A typo here locks everyone out of a
+  # box whose only other access path is a rebuild.
+  if sshd -t 2>/dev/null; then
+    systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || true
+  else
+    log "WARNING: sshd config did not validate; reverting and leaving SSH alone"
+    rm -f /etc/ssh/sshd_config.d/99-key-only.conf
+  fi
+fi
+
 # --- k3s ----------------------------------------------------------------
 # When the module does not own a primary IP the address is unknown at plan
 # time, so it is resolved here instead.

@@ -75,14 +75,19 @@ resource "ovh_vps" "this" {
   image_id       = var.vps_image_id != "" ? var.vps_image_id : null
   public_ssh_key = var.vps_image_id != "" ? trimspace(tls_private_key.this.public_key_openssh) : null
 
-  # Always set, never null. This attribute is Optional+Computed, and /vps/{name}
-  # has no field for it, so with a null config the provider has nothing to
-  # return and hands back an unknown -- which is illegal after apply and fails
-  # the whole run with "Provider returned invalid result object after apply",
-  # AFTER the order has already been placed. Setting it unconditionally is safe:
-  # the provider gates the rebuild on image_id/public_ssh_key alone
-  # (installOptionsHasBeenSet), so this on its own triggers nothing.
-  do_not_send_password = true
+  # do_not_send_password is deliberately ABSENT.
+  #
+  # The provider cannot handle it either way. /vps/{name} has no field for it,
+  # so nothing is ever read back:
+  #
+  #   unset  -> "still indicated an unknown value for do_not_send_password"
+  #             (invalid result object, fails the apply AFTER the order lands)
+  #   = true -> "was cty.True, but now null" (inconsistent result after apply)
+  #
+  # Leaving it out and ignoring it is the only combination that applies cleanly.
+  # The consequence is that OVH emails a root password on every reinstall, so
+  # the k3s install disables SSH password authentication -- see
+  # install-k3s.sh.tmpl. That is worth doing regardless.
 
   lifecycle {
     # Ordering charges the account's default payment method. Terraform replacing
@@ -94,6 +99,8 @@ resource "ovh_vps" "this" {
       # bought, not what it is, and the catalog reprices them independently.
       plan,
       plan_option,
+      # Never readable, so every plan would show a phantom change.
+      do_not_send_password,
     ]
   }
 }
