@@ -17,7 +17,7 @@ spec:
           replicas: 1
         service:
           type: LoadBalancer
-          loadBalancerIP: 178.156.242.161
+          loadBalancerIP: 40.160.89.129
         ports:
           web:
             port: 80
