@@ -52,7 +52,11 @@ printf '%-42s %-8s %-6s %s\n' HOST DNS CODE NOTE
 for entry in "${HOSTS[@]}"; do
   IFS='|' read -r host ns sel <<<"$entry"
 
-  got=$(getent hosts "$host" 2>/dev/null | head -1 | awk '{print $1}')
+  # `|| true` matters: getent exits 2 when a name does not resolve, and under
+  # `set -e` that kills the script mid-list -- so the one thing this tool exists
+  # to catch would end the run early and leave every host after it unreported,
+  # with the hosts already checked shown as passing.
+  got=$(getent hosts "$host" 2>/dev/null | head -1 | awk '{print $1}' || true)
   if [ "$got" = "$IP" ]; then dns=ok; else dns="${got:-none}"; fi
 
   # No -k: a self-signed cert must count as a failure, since that is exactly
