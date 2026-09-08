@@ -180,13 +180,35 @@ def call(base, method, path, body=""):
 
 candidates = [(named, eps[named])] if named in eps else list(eps.items())
 
+# A 403 "not been granted" is the opposite of a credential problem: the request
+# was signed correctly and OVH recognised it, the consumer key simply lacks that
+# path. Reporting it as "these credentials do not work" sends you off rotating a
+# secret that was fine all along, so the two are separated here.
 live = None
+scoped_out = None
 for name, base in candidates:
     out, err = call(base, "GET", "/me")
     if out is not None:
         live = (name, base, json.loads(out))
         break
+    if "not been granted" in (err or ""):
+        scoped_out = (name, base)
+        break
     print("  %-8s %s" % (name, err))
+
+if live is None and scoped_out is not None:
+    name, base = scoped_out
+    print("\n  endpoint  %s  (%s)" % (name, base))
+    print("\nThese credentials are VALID -- correctly signed, right endpoint --")
+    print("but the consumer key has not been granted /me.")
+    print("\nA consumer key carries a fixed list of method+path pairs chosen when")
+    print("it was created, and it cannot be widened afterwards. Create a new one:")
+    print("  %s/createToken/" % base.rsplit("/1.0", 1)[0])
+    print("\ngranting GET, POST, PUT and DELETE on each of:")
+    print("  /me/*  /vps/*  /order/*  /services/*")
+    print("\nThen put the new application key, secret and consumer key back in")
+    print("1Password and re-run: %s check" % sys.argv[0] if len(sys.argv) else "")
+    sys.exit(1)
 
 if live is None:
     print("\nno endpoint accepted these credentials.")
