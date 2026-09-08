@@ -13,6 +13,7 @@ elsewhere.
 | ------ | ------------ |
 | `staging.sh` | The lifecycle. `up`, `down`, `relocate`, `status`, `verify`, `ssh`, `kubeconfig`, `nuke` |
 | `certs.sh` | `status`, `unstick`, `watch` — certificates and stuck ACME challenges |
+| `unstick-rollout.sh` | `status`, `fix` — StatefulSet rollouts that can never finish because the pod blocking them is the one the old spec produced |
 | `secrets.sh` | `status`, `sources`, `resync` — what exists, where it comes from, what is orphaned |
 | `staging-ovh.sh` | The OVH VPS trial. `plan`, `up`, `status`, `ssh`, `kubeconfig`, `destroy` |
 | `personal-prod-server.sh` | SSH to production |
