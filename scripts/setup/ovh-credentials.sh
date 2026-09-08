@@ -111,7 +111,7 @@ ENDPOINTS="ovh-eu=https://eu.api.ovh.com/1.0 ovh-us=https://api.us.ovhcloud.com/
 
 # The paths terraform touches to order and manage a VPS. A consumer key can
 # authenticate perfectly and still be missing any of these.
-PROBES="GET:/me GET:/vps GET:/services GET:/order/cart GET:/me/paymentMean"
+PROBES="GET:/me GET:/vps GET:/services GET:/order/cart GET:/me/payment/method"
 
 # With an env name, checks the credentials terraform will actually use. Without
 # one, checks what is in 1Password. These can differ -- `request` writes the new
@@ -251,6 +251,23 @@ for method, path in probes:
     else:
         verdict = err[:60]
     print("    %-4s %-20s %s" % (method, path, verdict))
+
+print("\n  payment method (an order fails without one):")
+try:
+    ids = call(base, "GET", "/me/payment/method")[0]
+    ids = json.loads(ids) if ids else []
+    if not ids:
+        print("    NONE -- add one in the OVH manager before ordering")
+        lacking.append("a valid payment method")
+    for i in ids:
+        raw, err = call(base, "GET", "/me/payment/method/%s" % i)
+        d = json.loads(raw) if raw else {}
+        mark = "default" if d.get("default") else ""
+        print("    %-12s %-9s %s" % (d.get("paymentType", "?"), d.get("status", "?"), mark))
+        if d.get("default") and d.get("status") != "VALID":
+            print("      the default method is not VALID; the order will fail")
+except Exception:
+    print("    could not read /me/payment/method")
 
 print()
 if lacking:
