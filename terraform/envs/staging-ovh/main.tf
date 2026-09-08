@@ -72,9 +72,17 @@ resource "ovh_vps" "this" {
   # provider rejects public_ssh_key unless image_id is set alongside it -- hence
   # the empty first pass. do_not_send_password is what stops OVH mailing a root
   # password, which is otherwise how you are expected to get in.
-  image_id             = var.vps_image_id != "" ? var.vps_image_id : null
-  public_ssh_key       = var.vps_image_id != "" ? trimspace(tls_private_key.this.public_key_openssh) : null
-  do_not_send_password = var.vps_image_id != "" ? true : null
+  image_id       = var.vps_image_id != "" ? var.vps_image_id : null
+  public_ssh_key = var.vps_image_id != "" ? trimspace(tls_private_key.this.public_key_openssh) : null
+
+  # Always set, never null. This attribute is Optional+Computed, and /vps/{name}
+  # has no field for it, so with a null config the provider has nothing to
+  # return and hands back an unknown -- which is illegal after apply and fails
+  # the whole run with "Provider returned invalid result object after apply",
+  # AFTER the order has already been placed. Setting it unconditionally is safe:
+  # the provider gates the rebuild on image_id/public_ssh_key alone
+  # (installOptionsHasBeenSet), so this on its own triggers nothing.
+  do_not_send_password = true
 
   lifecycle {
     # Ordering charges the account's default payment method. Terraform replacing

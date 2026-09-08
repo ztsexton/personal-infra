@@ -1,0 +1,145 @@
+{
+  "version": 4,
+  "terraform_version": "1.5.7",
+  "serial": 3,
+  "lineage": "44a2daf7-32c7-2239-f5ef-f18abdc7c8d3",
+  "outputs": {
+    "ipv4_address": {
+      "value": "",
+      "type": "string"
+    },
+    "monthly_cost_note": {
+      "value": "vps-2027-model1 at US-EAST-VA + backups = the catalog price for pricing_mode=default. Terminating stops billing at the end of the current term.",
+      "type": "string"
+    },
+    "ssh_private_key": {
+      "value": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtz\nc2gtZWQyNTUxOQAAACCOXeSN7padCkRjK2skwv0pxOIWlNzb+zW7xsUXbZy3PwAA\nAIgbce8rG3HvKwAAAAtzc2gtZWQyNTUxOQAAACCOXeSN7padCkRjK2skwv0pxOIW\nlNzb+zW7xsUXbZy3PwAAAECRaahBYiimVif94ffxRGQgO2dGM2BHyq/iE6mU+Lj8\n1I5d5I3ulp0KRGMrayTC/SnE4haU3Nv7NbvGxRdtnLc/AAAAAAECAwQF\n-----END OPENSSH PRIVATE KEY-----\n",
+      "type": "string",
+      "sensitive": true
+    }
+  },
+  "resources": [
+    {
+      "mode": "managed",
+      "type": "ovh_vps",
+      "name": "this",
+      "provider": "provider[\"registry.terraform.io/ovh/ovh\"]",
+      "instances": [
+        {
+          "status": "tainted",
+          "schema_version": 0,
+          "attributes": {
+            "cluster": "",
+            "display_name": "staging-ovh-k3s",
+            "do_not_send_password": null,
+            "iam": {
+              "display_name": null,
+              "id": "1b49d649-302c-4056-b18e-e7a98c729ac8",
+              "tags": null,
+              "urn": "urn:v1:us:resource:vps:vps-43028c82.vps.ovh.us"
+            },
+            "id": "vps-43028c82.vps.ovh.us",
+            "image_id": null,
+            "keymap": null,
+            "memory_limit": 4096,
+            "model": {
+              "available_options": [],
+              "datacenter": [],
+              "disk": 40,
+              "maximum_additionnal_ip": 16,
+              "memory": 4096,
+              "name": "vps-2027-model1",
+              "offer": "VPS-1 2027",
+              "vcore": 2,
+              "version": "2027v1"
+            },
+            "monitoring_ip_blocks": [],
+            "name": "vps-43028c82.vps.ovh.us",
+            "netboot_mode": "local",
+            "offer_type": "ssd",
+            "order": null,
+            "ovh_subsidiary": "US",
+            "plan": [
+              {
+                "configuration": [
+                  {
+                    "label": "vps_datacenter",
+                    "value": "US-EAST-VA"
+                  },
+                  {
+                    "label": "vps_os",
+                    "value": "Ubuntu 24.04"
+                  }
+                ],
+                "duration": "P1M",
+                "item_id": null,
+                "plan_code": "vps-2027-model1",
+                "pricing_mode": "default",
+                "quantity": 1
+              }
+            ],
+            "plan_option": [
+              {
+                "configuration": null,
+                "duration": "P1M",
+                "plan_code": "option-linux",
+                "pricing_mode": "default",
+                "quantity": 1
+              },
+              {
+                "configuration": null,
+                "duration": "P1M",
+                "plan_code": "option-storage-local-2027-model1",
+                "pricing_mode": "default",
+                "quantity": 1
+              },
+              {
+                "configuration": null,
+                "duration": "P1M",
+                "plan_code": "option-auto-backup-2027-1-model1",
+                "pricing_mode": "default",
+                "quantity": 1
+              }
+            ],
+            "public_ssh_key": null,
+            "service_name": "vps-43028c82.vps.ovh.us",
+            "sla_monitoring": false,
+            "state": "running",
+            "vcore": 2,
+            "zone": "Region OpenStack: os-us-east-va-2"
+          },
+          "sensitive_attributes": [],
+          "dependencies": [
+            "tls_private_key.this"
+          ]
+        }
+      ]
+    },
+    {
+      "mode": "managed",
+      "type": "tls_private_key",
+      "name": "this",
+      "provider": "provider[\"registry.terraform.io/hashicorp/tls\"]",
+      "instances": [
+        {
+          "schema_version": 1,
+          "attributes": {
+            "algorithm": "ED25519",
+            "ecdsa_curve": "P224",
+            "id": "bb015f0cf2ff5a3a5275a0ee4872f2aaeed856f4",
+            "private_key_openssh": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtz\nc2gtZWQyNTUxOQAAACCOXeSN7padCkRjK2skwv0pxOIWlNzb+zW7xsUXbZy3PwAA\nAIgbce8rG3HvKwAAAAtzc2gtZWQyNTUxOQAAACCOXeSN7padCkRjK2skwv0pxOIW\nlNzb+zW7xsUXbZy3PwAAAECRaahBYiimVif94ffxRGQgO2dGM2BHyq/iE6mU+Lj8\n1I5d5I3ulp0KRGMrayTC/SnE4haU3Nv7NbvGxRdtnLc/AAAAAAECAwQF\n-----END OPENSSH PRIVATE KEY-----\n",
+            "private_key_pem": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIJFpqEFiKKZWJ/3h9/FEZCA7Z0YzYEfKr+ITqZT4uPzU\n-----END PRIVATE KEY-----\n",
+            "private_key_pem_pkcs8": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIJFpqEFiKKZWJ/3h9/FEZCA7Z0YzYEfKr+ITqZT4uPzU\n-----END PRIVATE KEY-----\n",
+            "public_key_fingerprint_md5": "7e:0e:02:b9:4a:35:fd:05:9c:66:0e:a8:b8:11:46:35",
+            "public_key_fingerprint_sha256": "SHA256:fUEYltlgKVGMGskoTQeW3E4+0+gx8xQfzgywlTMWuEQ",
+            "public_key_openssh": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII5d5I3ulp0KRGMrayTC/SnE4haU3Nv7NbvGxRdtnLc/\n",
+            "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAjl3kje6WnQpEYytrJML9KcTiFpTc2/s1u8bFF22ctz8=\n-----END PUBLIC KEY-----\n",
+            "rsa_bits": 2048
+          },
+          "sensitive_attributes": []
+        }
+      ]
+    }
+  ],
+  "check_results": null
+}
