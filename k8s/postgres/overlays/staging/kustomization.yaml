@@ -1,0 +1,29 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+
+# The base asks for 4Gi, which is more memory than a 4GB node has allocatable
+# at all -- so on staging the database could never be scheduled, whatever else
+# was running:
+#
+#   0/1 nodes are available: 1 Insufficient cpu, 1 Insufficient memory
+#
+# Those are production-shaped numbers. Staging holds a handful of rows and
+# serves one person, so it gets production's shape at a fraction of the size.
+# Limits are kept well above requests: this is about what has to be reserved to
+# schedule, not about capping what it may use under load.
+patches:
+  - target:
+      kind: PostgresCluster
+      name: ballroom-db
+    patch: |-
+      - op: replace
+        path: /spec/instances/0/resources
+        value:
+          requests:
+            cpu: 250m
+            memory: 512Mi
+          limits:
+            cpu: "1"
+            memory: 1Gi

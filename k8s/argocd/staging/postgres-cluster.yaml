@@ -9,7 +9,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/ztsexton/personal-infra.git
-    path: k8s/postgres
+    path: k8s/postgres/overlays/staging
     targetRevision: HEAD
     directory:
       recurse: true
