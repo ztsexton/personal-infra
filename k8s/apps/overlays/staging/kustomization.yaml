@@ -11,6 +11,15 @@ resources:
   - ingress/spotifybutler-ingress.yaml
   - ingress/vigilo-ingress.yaml
 
+  # ballroom-progress-tracker: staging only, so the whole app lives in this
+  # overlay rather than in base. Production runs neither the app nor the
+  # ballroom_progress database it needs.
+  - ballroom-progress-tracker/deployment.yaml
+  - ballroom-progress-tracker/service.yaml
+  - ballroom-progress-tracker/onepassword-secret.yaml
+  - ballroom-progress-tracker/migrate-job.yaml
+  - ingress/ballroom-progress-tracker-ingress.yaml
+
 # Staging runs the whole stack on one small node, so the base's
 # production-shaped reservations do not fit alongside the database. These are
 # requests only -- what has to be reserved to schedule -- and the limits in the

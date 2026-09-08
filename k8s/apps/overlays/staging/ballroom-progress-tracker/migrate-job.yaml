@@ -1,0 +1,48 @@
+# Migrations run here, not in the container entrypoint.
+#
+# The app's own docs/DEPLOYMENT.md is explicit about why: on start, every
+# instance in a scaled deployment races to migrate the same database, and a
+# rolling deploy runs them while the previous version is still serving.
+#
+# An Argo CD PreSync hook is the GitOps equivalent of "apply migrations once,
+# from one place, before rolling out": Argo runs this to completion and only
+# then syncs the Deployment. It uses the same image tag the Deployment does,
+# so the schema and the code that expects it always come from one build.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ballroom-progress-tracker-migrate
+  namespace: web
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    # Replace rather than accumulate: without this, the second sync fails
+    # because a completed Job of the same name already exists.
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 2
+  # Do not let a stuck migration hold the sync open indefinitely.
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: zot-registry-credentials
+      containers:
+        - name: migrate
+          image: ghcr.io/ztsexton/ballroom-progress-tracker:main
+          # The runtime image carries prisma, @prisma/client, the schema and
+          # the migration files precisely so this needs no second image.
+          command: ["npx", "prisma", "migrate", "deploy"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ballroom-db-pguser-progress
+                  key: uri
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

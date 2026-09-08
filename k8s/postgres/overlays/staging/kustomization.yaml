@@ -27,3 +27,23 @@ patches:
           limits:
             cpu: "1"
             memory: 1Gi
+
+  # A database and user for ballroom-progress-tracker, staging only.
+  #
+  # Added here rather than in the base because the app itself is staging-only
+  # for now: putting it in the base would create the role and database on
+  # production too, for an app production does not run.
+  #
+  # PGO generates the password and publishes the whole connection string as
+  # `uri` in the secret ballroom-db-pguser-progress.
+  - target:
+      kind: PostgresCluster
+      name: ballroom-db
+    patch: |-
+      - op: add
+        path: /spec/users/-
+        value:
+          name: progress
+          databases:
+            - ballroom_progress
+

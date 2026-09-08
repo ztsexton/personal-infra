@@ -1,0 +1,83 @@
+# ballroom-progress-tracker, staging only.
+#
+# Not in k8s/apps/base because base is shared with production, and production
+# neither runs this app nor has the ballroom_progress database it needs.
+# Promoting it later means moving these files to base and adding the same
+# database to the production postgres overlay.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ballroom-progress-tracker
+  namespace: web
+  labels:
+    app: ballroom-progress-tracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ballroom-progress-tracker
+  template:
+    metadata:
+      labels:
+        app: ballroom-progress-tracker
+    spec:
+      # The GHCR package is private because the repository is. This secret
+      # carries auths for ghcr.io and is synced from 1Password.
+      imagePullSecrets:
+        - name: zot-registry-credentials
+      containers:
+        - name: app
+          image: ghcr.io/ztsexton/ballroom-progress-tracker:main
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            # PGO generates this user's password and publishes the whole
+            # connection string as `uri`. Nothing here knows the password.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: ballroom-db-pguser-progress
+                  key: uri
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ballroom-progress-tracker-auth
+                  key: BETTER_AUTH_SECRET
+            - name: BETTER_AUTH_URL
+              value: "https://progress-staging.zachsexton.com"
+            # Better Auth rejects an auth request whose Origin is not listed.
+            - name: AUTH_TRUSTED_ORIGINS
+              value: "https://progress-staging.zachsexton.com"
+            # APP_BASE_DOMAIN is deliberately unset. It exists to serve
+            # per-studio subdomains, which staging does not do; with it unset
+            # every request falls back to DEFAULT_STUDIO_SLUG.
+            - name: DEFAULT_STUDIO_SLUG
+              value: "demo-ballroom-studio"
+          # /api/health runs a real `SELECT 1` through Prisma, so readiness
+          # genuinely means "connected to its database" rather than "process
+          # started".
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            # Deliberately slack: a brief database blip should restart nothing.
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 768Mi

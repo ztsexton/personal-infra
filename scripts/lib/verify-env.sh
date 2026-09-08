@@ -24,6 +24,7 @@ HOSTS=(
   "spotifybutler-staging.zachsexton.com|web|app=spotifybutler"
   "staging.petfoodfinder.app|web|app=ballroom-competition-web"
   "syllabus-staging.zachsexton.com|web|app=ballroom-syllabi"
+  "progress-staging.zachsexton.com|web|app=ballroom-progress-tracker"
   "grafana-staging.zachsexton.com|monitoring|app.kubernetes.io/name=grafana"
   "argocd-staging.zachsexton.com|argocd|app.kubernetes.io/name=argocd-server"
 )
