@@ -39,11 +39,33 @@ need_session() {
 item_exists() { op item get "$1" --vault "$VAULT" >/dev/null 2>&1; }
 
 # Length only. This script exists to be run while someone watches the screen.
+#
+# Reports rather than crashes when op returns nothing. An empty stdin fed to
+# json.load raises "Expecting value: line 1 column 1", which says nothing about
+# the actual problem -- and this runs as the read-back after a write, so a
+# traceback here reads as if the write itself exploded.
 field_shape() { # item
-  op item get "$1" --vault "$VAULT" --format json 2>/dev/null | ITEM_FIELD="$FIELD" "$PY" -c '
+  local out err rc=0
+  err=$(mktemp)
+  out=$(op item get "$1" --vault "$VAULT" --format json 2>"$err") || rc=$?
+  if [ "$rc" -ne 0 ] || [ -z "$out" ]; then
+    # Surface op's own words. Swallowing them was why the first failure here
+    # was a Python traceback rather than a message naming the cause.
+    printf 'UNREADABLE (%s)' "$(tr -d '\n' < "$err" | head -c 120)"
+    rm -f "$err"
+    return 0
+  fi
+  rm -f "$err"
+  printf '%s' "$out" | ITEM_FIELD="$FIELD" "$PY" -c '
 import json, os, sys
 want = os.environ["ITEM_FIELD"]
-d = json.load(sys.stdin)
+raw = sys.stdin.read().strip()
+if not raw:
+    print("UNREADABLE (op returned nothing)"); sys.exit()
+try:
+    d = json.loads(raw)
+except json.JSONDecodeError as e:
+    print("UNREADABLE (not JSON: %s)" % e); sys.exit()
 for f in d.get("fields", []):
     if (f.get("label") or f.get("id")) == want:
         v = f.get("value") or ""
@@ -87,7 +109,9 @@ write_field() { # item value  -- creates or edits as needed
 
   if item_exists "$item"; then
     # Edit in place, preserving everything else on the item.
-    op item get "$item" --vault "$VAULT" --format json > "$tmpl.orig" 2>/dev/null
+    op item get "$item" --vault "$VAULT" --format json > "$tmpl.orig" \
+      || die "could not read the existing item '$item' -- op's message is above"
+    [ -s "$tmpl.orig" ] || die "op returned an empty item for '$item'; refusing to overwrite it with a guess"
     ITEM_FIELD="$FIELD" VALUE="$value" "$PY" - "$tmpl.orig" > "$tmpl" <<'PYEOF'
 import json, os, sys
 d = json.load(open(sys.argv[1]))
@@ -147,7 +171,7 @@ cmd_create() {
   fi
 
   step "generating $FIELD and writing it to '$item'"
-  write_field "$item" "$(generate)"
+  write_field "$item" "$(generate)" || die "the write failed; see op's message above"
 
   # Read back rather than trusting the exit code: `op item edit` has been seen
   # to exit 0 having changed nothing.
