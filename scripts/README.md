@@ -40,6 +40,15 @@ Occasional, mostly one-time. You will not run these in a normal week.
 | `set-env-ip.sh` | Writing an environment's IP into the manifests that hardcode it. Normally called for you by `staging.sh up` |
 | `zot-htpasswd.sh` | Regenerating the Zot htpasswd entry when rotating that password |
 
+## lib/
+
+Called by the scripts above, not directly.
+
+| Script | What it is |
+| ------ | ---------- |
+| `verify-env.sh` | The list of staging hostnames and the TLS check, shared by `staging.sh verify` and `staging-ovh.sh verify` so the list exists once |
+| `tfvars.py` | Reading and writing single values in a tfvars file. Exists because the obvious `grep -oP '"\K[^"]*"'` stops at the first escaped quote, which silently truncates the 1Password credentials JSON to two characters |
+
 ## archive/
 
 Finished one-offs and superseded tooling. Kept because they record how something

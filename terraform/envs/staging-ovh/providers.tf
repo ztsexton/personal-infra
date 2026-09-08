@@ -8,3 +8,7 @@ provider "ovh" {
   application_secret = var.ovh_application_secret
   consumer_key       = var.ovh_consumer_key
 }
+
+provider "cloudflare" {
+  api_token = var.cloudflare_api_token
+}

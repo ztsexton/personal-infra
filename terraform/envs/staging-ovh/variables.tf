@@ -141,3 +141,79 @@ variable "vps_host" {
   type        = string
   default     = ""
 }
+
+# --- Argo CD bootstrap --------------------------------------------------------
+
+variable "bootstrap_cluster" {
+  description = "Install Argo CD and the root Application after k3s. Off until the VPS is known to work."
+  type        = bool
+  default     = true
+}
+
+variable "argocd_admin_password_bcrypt" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "argocd_chart_version" {
+  type    = string
+  default = "7.7.11"
+}
+
+variable "git_repo_url" {
+  type    = string
+  default = "https://github.com/ztsexton/personal-infra.git"
+}
+
+variable "git_root_app_path" {
+  description = "Argo root app path. Points at the shared staging tree: this environment replaces Hetzner staging rather than running alongside it."
+  type        = string
+  default     = "k8s/argocd/staging"
+}
+
+variable "git_revision" {
+  type    = string
+  default = "master"
+}
+
+variable "onepassword_connect_token" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "onepassword_credentials_json" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+# --- DNS ----------------------------------------------------------------------
+
+variable "cloudflare_api_token" {
+  type      = string
+  sensitive = true
+  default   = ""
+}
+
+variable "cloudflare_zone_id_zachsexton" {
+  type    = string
+  default = ""
+}
+
+variable "cloudflare_zone_id_petfoodfinder" {
+  type    = string
+  default = ""
+}
+
+variable "cloudflare_zone_id_vigilo" {
+  type    = string
+  default = ""
+}
+
+variable "manage_dns" {
+  description = "Point the staging hostnames at this box. Only ever one environment at a time -- these are the same records Hetzner staging owns."
+  type        = bool
+  default     = false
+}

@@ -445,78 +445,10 @@ cmd_status() {
   fi
 }
 
-# host | namespace | label selector -- the selector is only used to explain a
-# failure by naming the pod that is not ready.
-STAGING_HOSTS=(
-  "staging.zachsexton.com|web|app=personal-site"
-  "petfoodfinder-staging.zachsexton.com|web|app=petfoodfinder"
-  "vigilo-staging.zachsexton.com|web|app=vigilo"
-  "spotifybutler-staging.zachsexton.com|web|app=spotifybutler"
-  "staging.petfoodfinder.app|web|app=ballroom-competition-web"
-  "syllabus-staging.zachsexton.com|web|app=ballroom-syllabi"
-  "grafana-staging.zachsexton.com|monitoring|app.kubernetes.io/name=grafana"
-  "argocd-staging.zachsexton.com|argocd|app.kubernetes.io/name=argocd-server"
-)
-
-# Why is this host not serving? Answered from the cluster, not guessed.
-explain() { # namespace selector
-  local ns="$1" sel="$2" kc="$REPO/kubeconfig-staging.yaml"
-  [ -f "$kc" ] || { echo "no kubeconfig; run: $0 kubeconfig"; return; }
-  local pod
-  pod=$(kubectl --kubeconfig "$kc" -n "$ns" get pods -l "$sel" \
-          -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
-  [ -n "$pod" ] || { echo "no pod matching $sel"; return; }
-
-  local phase waiting
-  phase=$(kubectl --kubeconfig "$kc" -n "$ns" get pod "$pod" \
-            -o jsonpath='{.status.phase}' 2>/dev/null)
-  # first container that is actually stuck, not just the first container
-  waiting=$(kubectl --kubeconfig "$kc" -n "$ns" get pod "$pod" -o json 2>/dev/null \
-            | jq -r '[.status.containerStatuses[]? | select(.ready==false) | .state.waiting.reason] | map(select(.)) | first // empty')
-
-  # events for THIS pod, not the last warning anywhere in the namespace
-  local ev
-  ev=$(kubectl --kubeconfig "$kc" -n "$ns" get events -o json 2>/dev/null \
-       | jq -r --arg p "$pod" '[.items[] | select(.involvedObject.name==$p and .type=="Warning")] | last | .message // empty' \
-       | tr -d '\n' | head -c 105)
-  echo "${phase:-none}${waiting:+/$waiting}${ev:+ | $ev}"
-}
-
 cmd_verify() {
-  local ip fail=0
-  ip=$(current_ip)
+  local ip; ip=$(current_ip)
   [ -n "$ip" ] || die "staging has no address; run: $0 up"
-
-  printf '%-42s %-8s %-6s %s\n' HOST DNS CODE NOTE
-  for entry in "${STAGING_HOSTS[@]}"; do
-    IFS='|' read -r host ns sel <<<"$entry"
-
-    local got dns code note
-    got=$(getent hosts "$host" 2>/dev/null | head -1 | awk '{print $1}')
-    if [ "$got" = "$ip" ]; then dns=ok; else dns="${got:-none}"; fi
-
-    # No -k: a self-signed cert must count as a failure, since that is exactly
-    # what happens when cert-manager cannot solve the DNS01 challenge.
-    code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 12 \
-             --resolve "$host:443:$ip" "https://$host/" 2>/dev/null || echo TLS)
-    note=""
-    case "$code" in
-      2*|3*) : ;;
-      401|403) note="(auth required -- serving)" ;;
-      *) note=$(explain "$ns" "$sel"); fail=1 ;;
-    esac
-    [ "$dns" = "ok" ] || fail=1
-
-    printf '%-42s %-8s %-6s %s\n' "$host" "$dns" "$code" "$note"
-  done
-
-  echo
-  if [ "$fail" -eq 0 ]; then
-    green "every configured host resolves and serves over valid TLS"
-  else
-    warn "some hosts are not serving; see NOTE above"
-    return 1
-  fi
+  "$REPO/scripts/lib/verify-env.sh" "$ip" "$REPO/kubeconfig-staging.yaml"
 }
 
 keyfile() {

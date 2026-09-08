@@ -40,20 +40,10 @@ die()   { red "error: $*"; exit 1; }
 
 tf() { terraform -chdir="$TF_DIR" "$@"; }
 
-tfvar() { grep -oP "^$1\s*=\s*\"\K[^\"]*" "$TFVARS" 2>/dev/null | head -1 || true; }
+tfvar() { python3 "$REPO/scripts/lib/tfvars.py" get "$TFVARS" "$1" 2>/dev/null || true; }
 
 set_var() { # name value
-  TFVARS="$TFVARS" VNAME="$1" VVALUE="$2" python3 - <<'PY'
-import json, os, re
-p, n, v = os.environ["TFVARS"], os.environ["VNAME"], os.environ["VVALUE"]
-s = open(p).read()
-line = "%s = %s" % (n, json.dumps(v))
-if re.search(r"^%s\s*=" % re.escape(n), s, re.M):
-    s = re.sub(r"^%s\s*=.*$" % re.escape(n), line, s, count=1, flags=re.M)
-else:
-    s = s.rstrip("\n") + "\n" + line + "\n"
-open(p, "w").write(s)
-PY
+  python3 "$REPO/scripts/lib/tfvars.py" set "$TFVARS" "$1" "$2"
 }
 
 # Credentials come out of tfvars so there is one place they live, and are handed
@@ -73,11 +63,58 @@ preflight() {
   for v in ovh_application_key ovh_application_secret ovh_consumer_key; do
     [ -n "$(tfvar "$v")" ] || die "$v is empty -- run: ./scripts/setup/ovh-credentials.sh write $ENV_NAME"
   done
+  inherit_shared_vars
+
   if [ -z "$(tfvar k3s_token)" ]; then
     step "generating k3s_token"
     set_var k3s_token "$(openssl rand -hex 32)"
   fi
+
+  if [ -z "$(tfvar argocd_admin_password_bcrypt)" ]; then
+    command -v htpasswd >/dev/null \
+      || die "htpasswd not found (apt install apache2-utils); needed to hash the Argo CD password"
+    local pw hash
+    pw=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | cut -c1-20)
+    hash=$(htpasswd -nbBC 10 admin "$pw" | cut -d: -f2)
+    set_var argocd_admin_password_bcrypt "$hash"
+    step "generated an Argo CD admin password"
+    warn "Argo CD login:  admin / $pw"
+    warn "Shown once. Only recoverable by regenerating the hash."
+  fi
+
+  # Without these the bootstrap skips 1Password entirely, which leaves every
+  # OnePasswordItem-backed secret missing -- including the Cloudflare token
+  # cert-manager needs, so nothing ever gets a certificate.
+  for v in onepassword_connect_token onepassword_credentials_json; do
+    if [ -z "$(tfvar "$v")" ]; then
+      warn "$v is empty: the bootstrap will skip 1Password, so cert-manager will"
+      warn "  have no Cloudflare token and no certificate will ever be issued."
+      warn "  Copy it from terraform/envs/staging/terraform.tfvars."
+      break
+    fi
+  done
   [ -d "$TF_DIR/.terraform" ] || tf init -input=false >/dev/null
+}
+
+# Cloudflare and 1Password are the same credentials whichever provider hosts
+# staging, so they are copied from the Hetzner env rather than pasted in twice.
+# Copied only when absent here, so a deliberate override is never clobbered.
+inherit_shared_vars() {
+  local src="$REPO/terraform/envs/staging/terraform.tfvars"
+  [ -f "$src" ] || return 0
+  local copied=() val
+  for v in cloudflare_api_token cloudflare_zone_id_zachsexton \
+           cloudflare_zone_id_petfoodfinder cloudflare_zone_id_vigilo \
+           onepassword_connect_token onepassword_credentials_json; do
+    [ -z "$(tfvar "$v")" ] || continue
+    val=$(python3 "$REPO/scripts/lib/tfvars.py" get "$src" "$v" 2>/dev/null) || continue
+    [ -n "$val" ] || continue
+    python3 "$REPO/scripts/lib/tfvars.py" set "$TFVARS" "$v" "$val"
+    copied+=("$v")
+  done
+  if [ "${#copied[@]}" -gt 0 ]; then
+    step "inherited from staging: ${copied[*]}"
+  fi
 }
 
 service_name() { tf output -raw service_name 2>/dev/null | grep -E '^[a-z0-9.-]+$' || true; }
@@ -182,6 +219,79 @@ for ip in json.load(sys.stdin):
   echo
   green "OVH staging is up at $host"
   cmd_status
+  echo
+  warn "The cluster is running, but nothing is routed to it yet: the staging"
+  warn "manifests still hardcode the Hetzner address, so Traefik's LoadBalancer"
+  warn "stays pending and DNS still points elsewhere."
+  echo
+  echo "To make this the live staging:  $0 promote"
+}
+
+# Take the staging hostnames over from whatever was serving them.
+#
+# Separate from `up` on purpose. `up` builds a cluster and touches nothing
+# shared; `promote` rewrites manifests on master and repoints DNS, which takes
+# staging away from the Hetzner box. Only one environment can hold these records
+# -- they are the same Cloudflare resources terraform/envs/staging manages.
+cmd_promote() {
+  preflight
+  local host; host=$(tfvar vps_host)
+  [ -n "$host" ] || die "no address known -- run: $0 up"
+
+  local hetzner_up=""
+  if terraform -chdir="$REPO/terraform/envs/staging" state list 2>/dev/null \
+       | grep -qx 'module.env.hcloud_server.this'; then
+    hetzner_up=1
+  fi
+
+  step "what promote does"
+  echo "  1. point k8s/argocd/staging/traefik.yaml and the MetalLB pool at $host"
+  echo "  2. commit and push that to master (Argo CD reads from GitHub)"
+  echo "  3. move the 8 staging DNS records onto $host"
+  echo "  4. verify every host serves"
+  echo
+  if [ -n "$hetzner_up" ]; then
+    warn "The Hetzner staging server is STILL RUNNING. After this it keeps"
+    warn "running but serves nothing, and its terraform state will describe DNS"
+    warn "records that no longer point at it. Spin it down first:"
+    warn "  ./scripts/staging.sh down"
+    echo
+  fi
+  read -r -p "Type 'promote' to continue: " reply
+  [ "$reply" = "promote" ] || die "aborted"
+
+  step "pointing the staging manifests at $host"
+  "$REPO/scripts/setup/set-env-ip.sh" staging "$host"
+  local branch; branch=$(git -C "$REPO" branch --show-current)
+  git -C "$REPO" add k8s
+  git -C "$REPO" commit -q -m "Point staging manifests at $host (OVH)" || true
+  if [ "$branch" = "master" ]; then
+    git -C "$REPO" push -q || warn "could not push -- Argo CD will not see this until you do"
+  else
+    warn "on branch '$branch'; Argo CD tracks master, so this takes effect on merge"
+  fi
+
+  step "moving DNS"
+  set_var manage_dns "true"
+  tf apply -input=false -auto-approve
+
+  echo
+  step "waiting for Argo CD to converge, then checking every URL"
+  cmd_kubeconfig >/dev/null 2>&1 || true
+  local i=0
+  until [ $i -ge 18 ]; do
+    kubectl --kubeconfig "$REPO/kubeconfig-staging-ovh.yaml" -n argocd get applications \
+      -o json 2>/dev/null \
+      | jq -e '[.items[] | select(.status.sync.status != "Synced")] | length == 0' >/dev/null 2>&1 && break
+    i=$((i+1)); sleep 10
+  done
+  cmd_verify || true
+}
+
+cmd_verify() {
+  local host; host=$(tfvar vps_host)
+  [ -n "$host" ] || die "no address known -- run: $0 up"
+  "$REPO/scripts/lib/verify-env.sh" "$host" "$REPO/kubeconfig-staging-ovh.yaml"
 }
 
 cmd_status() {
@@ -264,6 +374,8 @@ cmd_destroy() {
 case "${1:-}" in
   plan)       cmd_plan ;;
   up)         cmd_up ;;
+  promote)    cmd_promote ;;
+  verify)     cmd_verify ;;
   status)     cmd_status ;;
   ssh)        shift; preflight; ssh_to "$@" ;;
   kubeconfig) cmd_kubeconfig ;;
@@ -273,7 +385,9 @@ case "${1:-}" in
 usage: $0 <command>
 
   plan        what would be ordered, priced from OVH's live catalog
-  up          order the VPS, install our key, install k3s
+  up          order the VPS, install our key, install k3s, bootstrap Argo CD
+  promote     take the staging hostnames and DNS over from Hetzner
+  verify      every configured URL, with real TLS validation
   status      what exists, read from the OVH API
   ssh         shell on the box
   kubeconfig  fetch it to kubeconfig-staging-ovh.yaml
