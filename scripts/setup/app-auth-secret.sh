@@ -102,6 +102,11 @@ else:
 json.dump(d, sys.stdout)
 PYEOF
     rm -f "$tmpl.orig"
+    # Dry run first. Both subcommands support it, and it turns a malformed
+    # invocation into a failure that changes nothing instead of one discovered
+    # halfway through writing a secret.
+    op item edit "$item" --vault "$VAULT" --template "$tmpl" --dry-run >/dev/null \
+      || die "op rejected the edit; nothing was written. Re-run with OP_DEBUG=1 to see it."
     op item edit "$item" --vault "$VAULT" --template "$tmpl" >/dev/null || rc=$?
   else
     # A Secure Note rather than a Password item: op validates the whole item on
@@ -118,7 +123,12 @@ json.dump({
                 "value": os.environ["VALUE"]}],
 }, sys.stdout)
 PYEOF
-    op item create --vault "$VAULT" - < "$tmpl" >/dev/null || rc=$?
+    # --category is required even though the template carries one: op parses
+    # the flag before it reads stdin, and refuses with "provide the item
+    # category with '--category' flag" otherwise.
+    op item create --category "Secure Note" --vault "$VAULT" --dry-run - < "$tmpl" >/dev/null \
+      || die "op rejected the create; nothing was written. Re-run with OP_DEBUG=1 to see it."
+    op item create --category "Secure Note" --vault "$VAULT" - < "$tmpl" >/dev/null || rc=$?
   fi
   return $rc
 }
