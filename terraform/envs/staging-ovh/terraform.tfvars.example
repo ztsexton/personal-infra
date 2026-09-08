@@ -1,0 +1,14 @@
+# Copy to terraform.tfvars, then:
+#   ./scripts/setup/ovh-credentials.sh write staging-ovh
+# which fills in the four ovh_* values from 1Password.
+
+ovh_endpoint           = "ovh-us"
+ovh_application_key    = ""
+ovh_application_secret = ""
+ovh_consumer_key       = ""
+
+# Generated for you by ./scripts/staging-ovh.sh up if left empty.
+k3s_token = ""
+
+# Filled in by ./scripts/staging-ovh.sh up between its two applies.
+vps_image_id = ""

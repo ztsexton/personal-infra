@@ -49,6 +49,7 @@ terraform/modules/environment/      # Reusable env: primary IP, server, DNS, clu
 terraform/envs/production/          # Production root (state in Scalr, applied via Scalr)
 terraform/envs/staging/             # Staging root (local state, applied locally)
 terraform/envs/sandbox/             # Throwaway root for testing create/destroy locally
+terraform/envs/staging-ovh/         # OVH VPS trial: same k3s, different provider (no DNS, no Argo)
 k8s/argocd/production/              # ArgoCD Application CRs for production
 k8s/argocd/staging/                 # ArgoCD Application CRs for staging
 k8s/apps/base/                      # Shared app manifests (deployments, services, secrets)
@@ -195,6 +196,39 @@ Repeatable: `down` keeps the primary IP, so the IP hardcoded in the staging
 manifests stays valid and `up` needs no manual step. Only the Hetzner and
 Cloudflare credentials are supplied by hand; the SSH keypair, k3s token and Argo
 CD password are generated.
+
+### The OVH trial
+
+`terraform/envs/staging-ovh/` orders an OVH VPS-1 and puts the same k3s on it,
+to find out whether OVH can host this stack before anything depends on it.
+
+```bash
+./scripts/setup/ovh-credentials.sh check   # do the credentials work, and can they order?
+./scripts/staging-ovh.sh plan              # what would be ordered, priced live
+./scripts/staging-ovh.sh up
+```
+
+Deliberately not wired to DNS or Argo CD: the staging manifests hardcode the
+Hetzner address, so a second cluster on the same git path would sit with a
+permanently pending LoadBalancer.
+
+Three things differ from Hetzner and shape the whole environment:
+
+- **No `user_data`.** `ovh_vps` has no cloud-init field, so the k3s install is
+  uploaded and run over SSH. Both providers render the same
+  `modules/environment/templates/install-k3s.sh.tmpl`, so the firewall rules and
+  k3s flags cannot drift apart.
+- **No IP anywhere in the provider** — not on the resource, not on the data
+  source. `staging-ovh.sh` reads it from `/vps/{serviceName}/ips` and writes it
+  back as `vps_host`.
+- **It is a subscription, so there is no `down`.** Billing is monthly, not
+  hourly; nothing is saved by stopping it, and terminating a committed term still
+  bills to the end of it. `vps_pricing_mode = "default"` keeps it month-to-month
+  for $0.81/mo more than the 12-month rate.
+
+`up` is necessarily two applies: the provider refuses `public_ssh_key` without
+`image_id`, and `image_id` is only listed by an endpoint that needs the VPS to
+already exist.
 
 ### Troubleshoot ArgoCD
 

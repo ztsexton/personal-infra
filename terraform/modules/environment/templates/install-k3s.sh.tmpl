@@ -1,0 +1,142 @@
+#!/usr/bin/env bash
+# The k3s install, shared by every provider.
+#
+# Hetzner runs this through cloud-init user_data; OVH has no user_data on
+# ovh_vps, so terraform/envs/staging-ovh copies this up and runs it over SSH.
+# Keeping one copy means the firewall rules and the k3s flags cannot drift
+# apart between the two, which is exactly the kind of difference that produces
+# a cluster that looks healthy and silently drops pod-to-pod traffic.
+#
+# Written to be run more than once: the marker file makes it a no-op after the
+# first success.
+set -euo pipefail
+
+MARKER=/var/lib/k3s-bootstrap-complete
+log() { echo "[k3s-bootstrap] $1" | systemd-cat -t k3s-bootstrap -p info; echo "[k3s-bootstrap] $1"; }
+
+if [ -f "$MARKER" ]; then
+  log "Marker present; nothing to do"
+  exit 0
+fi
+
+# --- Firewall -----------------------------------------------------------
+# ufw sets the FORWARD policy to DROP, which breaks pod and service
+# networking, so forwarding is re-enabled and the cluster CIDRs allowed.
+log "Configuring ufw"
+sed -i 's/^DEFAULT_FORWARD_POLICY=.*/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
+ufw default deny incoming
+ufw default allow outgoing
+for p in 22 80 443 6443; do ufw allow "$p"/tcp; done
+ufw allow from ${pod_cidr}
+ufw allow from ${service_cidr}
+ufw allow in on cni0
+
+# Node-to-node traffic, needed the moment a second node joins. Scoped to
+# the private network rather than opened to the internet, so it stays shut
+# until node_network_cidr is set.
+#
+#   8472/udp   flannel VXLAN. Without it an agent joins and looks healthy
+#              while pod-to-pod traffic across nodes is silently dropped
+#   10250/tcp  kubelet API: kubectl logs/exec and metrics-server
+#   2379-2380  embedded etcd, only used when running more than one server
+%{ if node_network_cidr != "" ~}
+log "Allowing node-to-node traffic from ${node_network_cidr}"
+ufw allow from ${node_network_cidr} to any port 8472 proto udp
+ufw allow from ${node_network_cidr} to any port 10250 proto tcp
+ufw allow from ${node_network_cidr} to any port 2379:2380 proto tcp
+%{ else ~}
+log "No node network configured; node-to-node ports stay closed (single node)"
+%{ endif ~}
+
+echo 'y' | ufw enable
+
+# --- k3s ----------------------------------------------------------------
+# When the module does not own a primary IP the address is unknown at plan
+# time, so it is resolved here instead.
+PUBIP="${public_ip}"
+if [ -z "$PUBIP" ]; then
+  PUBIP=$(curl -sf https://api.ipify.org || curl -sf https://ifconfig.me || true)
+fi
+if [ -z "$PUBIP" ]; then
+  log "ERROR: could not determine the public IP; k3s needs it for --tls-san"
+  exit 1
+fi
+log "Public IP: $PUBIP"
+
+if ! command -v k3s >/dev/null 2>&1; then
+  log "Installing k3s ${k3s_version}"
+  # traefik  -> managed by Argo CD via the Traefik Helm chart
+  # servicelb -> replaced by MetalLB; leaving klipper-lb on makes both
+  #              controllers fight over LoadBalancer services
+  # tls-san   -> lets a kubeconfig rewritten to the public IP actually
+  #              validate, which the documented scp workflow depends on
+  K3S_ARGS="server --disable traefik --disable servicelb --tls-san $PUBIP --node-external-ip $PUBIP --write-kubeconfig-mode 600"
+
+  %{ if node_network_cidr != "" ~}
+  # Put intra-cluster traffic on the private network. --node-ip is the
+  # address other nodes reach this one on; --flannel-iface is the interface
+  # VXLAN binds to. Without both, k3s advertises the public IP and node-to-
+  # node traffic crosses the internet even though a private network exists.
+  #
+  # The interface name differs between Hetzner server generations, so it is
+  # found by looking for the address rather than assumed. Hetzner brings the
+  # NIC up shortly after boot, hence the wait.
+  # Hetzner assigns the address; this finds whichever interface holds one
+  # inside the node network. Nothing is hardcoded, so a second node needs no
+  # configuration at all -- it just comes up on the network and is found.
+  #
+  # The interface name differs between Hetzner server generations, and
+  # matching a CIDR needs real subnet maths, so python3 does the check --
+  # cloud-init is itself written in python, so it is always present.
+  log "Waiting for an address inside ${node_network_cidr}"
+  PRIV_IFACE=""; PRIV_IP=""
+  for _ in $(seq 1 60); do
+    FOUND=$(ip -o -4 addr show | python3 -c "import sys,ipaddress as I;n=I.ip_network('${node_network_cidr}');print(next((f[1]+' '+str(I.ip_interface(f[3]).ip) for f in (l.split() for l in sys.stdin) if len(f)>3 and I.ip_interface(f[3]).ip in n),''))")
+    if [ -n "$FOUND" ]; then
+      PRIV_IFACE="$${FOUND%% *}"
+      PRIV_IP="$${FOUND##* }"
+      break
+    fi
+    sleep 2
+  done
+  if [ -n "$PRIV_IP" ]; then
+    log "Private network up on $PRIV_IFACE ($PRIV_IP)"
+    K3S_ARGS="$K3S_ARGS --node-ip $PRIV_IP --flannel-iface $PRIV_IFACE"
+  else
+    log "WARNING: no address inside ${node_network_cidr} appeared; continuing on the public interface"
+  fi
+  %{ endif ~}
+
+  curl -sfL https://get.k3s.io \
+    | INSTALL_K3S_VERSION="${k3s_version}" \
+      K3S_TOKEN="${k3s_token}" \
+      INSTALL_K3S_EXEC="$K3S_ARGS" \
+      sh -
+else
+  log "k3s already installed; skipping"
+fi
+
+if ! command -v kubectl >/dev/null 2>&1 && [ -x /usr/local/bin/k3s ]; then
+  ln -sf /usr/local/bin/k3s /usr/local/bin/kubectl
+fi
+
+export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+echo 'export KUBECONFIG=/etc/rancher/k3s/k3s.yaml' > /etc/profile.d/k3s.sh
+
+log "Waiting for the node to become Ready"
+for i in $(seq 1 120); do
+  if kubectl wait --for=condition=Ready node --all --timeout=10s >/dev/null 2>&1; then
+    break
+  fi
+  sleep 5
+done
+kubectl wait --for=condition=Ready node --all --timeout=60s
+
+# --- helm ---------------------------------------------------------------
+if ! command -v helm >/dev/null 2>&1; then
+  log "Installing helm"
+  curl -sfL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+fi
+
+touch "$MARKER"
+log "Complete"

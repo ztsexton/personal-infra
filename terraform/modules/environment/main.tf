@@ -31,6 +31,19 @@ resource "hcloud_primary_ip" "ephemeral" {
 }
 
 locals {
+  # Rendered on its own rather than inlined into the cloud-init template, so a
+  # provider with no user_data can upload the same script and run it over SSH.
+  install_k3s = templatefile("${path.module}/templates/install-k3s.sh.tmpl", {
+    k3s_token   = var.k3s_token
+    k3s_version = var.k3s_version
+    # Cannot be local.public_ip: that reads back from hcloud_server.this when the
+    # module does not own the address. The script resolves it at runtime instead.
+    public_ip         = var.manage_primary_ip ? local.primary_ip.ip_address : ""
+    pod_cidr          = var.pod_cidr
+    service_cidr      = var.service_cidr
+    node_network_cidr = var.node_network_cidr
+  })
+
   primary_ip = one(concat(hcloud_primary_ip.protected, hcloud_primary_ip.ephemeral))
 
   # With manage_primary_ip = false the server keeps whatever address Hetzner gave
@@ -85,14 +98,7 @@ resource "hcloud_server" "this" {
   # the 1Password credentials arrive over SSH from bootstrap.tf, because user_data
   # stays readable through the Hetzner console and API for the life of the server.
   user_data = templatefile("${path.module}/templates/cloud-init.yaml.tmpl", {
-    k3s_token   = var.k3s_token
-    k3s_version = var.k3s_version
-    # Cannot be local.public_ip: that reads back from this very resource when the
-    # module does not own the address. cloud-init resolves it at runtime instead.
-    public_ip         = var.manage_primary_ip ? local.primary_ip.ip_address : ""
-    pod_cidr          = var.pod_cidr
-    service_cidr      = var.service_cidr
-    node_network_cidr = var.node_network_cidr
+    install_k3s = local.install_k3s
   })
 }
 

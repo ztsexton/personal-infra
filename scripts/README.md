@@ -14,6 +14,7 @@ elsewhere.
 | `staging.sh` | The lifecycle. `up`, `down`, `relocate`, `status`, `verify`, `ssh`, `kubeconfig`, `nuke` |
 | `certs.sh` | `status`, `unstick`, `watch` — certificates and stuck ACME challenges |
 | `secrets.sh` | `status`, `sources`, `resync` — what exists, where it comes from, what is orphaned |
+| `staging-ovh.sh` | The OVH VPS trial. `plan`, `up`, `status`, `ssh`, `kubeconfig`, `destroy` |
 | `personal-prod-server.sh` | SSH to production |
 | `personal-web-server.sh` | SSH to staging |
 
@@ -31,6 +32,8 @@ Occasional, mostly one-time. You will not run these in a normal week.
 | Script | When |
 | ------ | ---- |
 | `onepassword-connect.sh` | Creating a 1Password Connect server and token for an environment |
+| `ovh-credentials.sh` | Finding the OVH API credentials in 1Password, proving they can order, writing them to tfvars |
+| `ovh-api.py` | Signed OVH API calls. Called by the two scripts above, not directly |
 | `registry-auth.sh` | Changing the container-registry credential in 1Password |
 | `hcloud-primary-ip.sh` | Listing Hetzner primary IPs, or protecting one from deletion |
 | `scalr-workspace.sh` | Reading or changing Scalr workspace settings |
