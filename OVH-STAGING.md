@@ -46,8 +46,12 @@ an application key alone from being enough to act on the account.
 **1.3** Confirm it worked:
 
 ```bash
-./scripts/setup/ovh-credentials.sh check
+./scripts/setup/ovh-credentials.sh check staging-ovh
 ```
+
+Pass the env name — `request` writes the new key to that env's tfvars, so a bare
+`check` would test the *old* key still sitting in 1Password and tell you the new
+one is broken.
 
 You want every probe to say `ok`. Anything `FORBIDDEN` means the grant did not
 take; repeat 1.1.
@@ -179,7 +183,8 @@ is read from the API and passed back in as `vps_host`.
 
 | Symptom | Where to look |
 | ------- | ------------- |
-| Order fails with 403 | `./scripts/setup/ovh-credentials.sh check` — the consumer key scopes |
+| Order fails with 403 | `./scripts/setup/ovh-credentials.sh check staging-ovh` — the consumer key scopes |
+| A rule looks granted but 403s | OVH's `/x/*` matches everything *under* `/x`, not `/x` itself. Both are needed, and `request` asks for both |
 | `up` stops at "no IPv4 address yet" | OVH is still provisioning; re-run in a minute, it is resumable |
 | No image matches | The script lists what is available; set `vps_os` in tfvars to one of those names verbatim |
 | k3s installed but Argo CD missing | `./scripts/staging-ovh.sh ssh` then `tail -100 /var/log/cluster-bootstrap.log` |

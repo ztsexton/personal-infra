@@ -111,16 +111,30 @@ ENDPOINTS="ovh-eu=https://eu.api.ovh.com/1.0 ovh-us=https://api.us.ovhcloud.com/
 
 # The paths terraform touches to order and manage a VPS. A consumer key can
 # authenticate perfectly and still be missing any of these.
-PROBES="GET:/me GET:/vps GET:/order/cart POST:/order/cart GET:/me/paymentMean"
+PROBES="GET:/me GET:/vps GET:/services GET:/order/cart GET:/me/paymentMean"
 
+# With an env name, checks the credentials terraform will actually use. Without
+# one, checks what is in 1Password. These can differ -- `request` writes the new
+# key to tfvars -- and checking the wrong one is how you conclude a working key
+# is broken.
 cmd_check() {
-  need_session
-  local creds ep ak as ck
-  creds=$(read_creds)
-  ep=$(sed -n 1p <<<"$creds")
-  ak=$(sed -n 2p <<<"$creds")
-  as=$(sed -n 3p <<<"$creds")
-  ck=$(sed -n 4p <<<"$creds")
+  local env="${1:-}" creds ep ak as ck
+  if [ -n "$env" ]; then
+    local tfvars="$REPO/terraform/envs/$env/terraform.tfvars"
+    [ -f "$tfvars" ] || die "no such environment tfvars: $tfvars"
+    step "checking the credentials in terraform/envs/$env/terraform.tfvars"
+    ep=$(python3 "$REPO/scripts/lib/tfvars.py" get "$tfvars" ovh_endpoint 2>/dev/null || echo "")
+    ak=$(python3 "$REPO/scripts/lib/tfvars.py" get "$tfvars" ovh_application_key 2>/dev/null || echo "")
+    as=$(python3 "$REPO/scripts/lib/tfvars.py" get "$tfvars" ovh_application_secret 2>/dev/null || echo "")
+    ck=$(python3 "$REPO/scripts/lib/tfvars.py" get "$tfvars" ovh_consumer_key 2>/dev/null || echo "")
+  else
+    need_session
+    creds=$(read_creds)
+    ep=$(sed -n 1p <<<"$creds")
+    ak=$(sed -n 2p <<<"$creds")
+    as=$(sed -n 3p <<<"$creds")
+    ck=$(sed -n 4p <<<"$creds")
+  fi
 
   step "what the item holds"
   printf '  endpoint            %s\n' "${ep:-<absent -- will be detected>}"
@@ -252,7 +266,12 @@ PY
 # The scopes a consumer key needs to order and manage a VPS through terraform.
 # A key's rules are fixed at creation and cannot be widened afterwards, which is
 # why a too-narrow key has to be replaced rather than edited.
-REQUIRED_RULES="/me/* /vps/* /order/* /services/*"
+#
+# Both the bare path and the wildcard, for each: OVH treats "/me/*" as matching
+# everything UNDER /me and not /me itself. Granting only the wildcard produces a
+# key that reads /me/paymentMean happily and 403s on /me, which reads exactly
+# like a broken credential. Verified against the live API.
+REQUIRED_RULES="/me /me/* /vps /vps/* /order /order/* /services /services/*"
 
 # Ask OVH for a new consumer key with those scopes.
 #
@@ -375,7 +394,7 @@ PY
 
 case "${1:-}" in
   show)  cmd_show ;;
-  check) cmd_check ;;
+  check) shift; cmd_check "$@" ;;
   request) shift; cmd_request "$@" ;;
   write) shift; cmd_write "$@" ;;
   *)
@@ -383,8 +402,9 @@ case "${1:-}" in
 usage: $0 <command>
 
   show          field names and sizes in the 1Password item (never values)
-  check         which endpoint the credentials belong to, and whether the
-                consumer key carries every right terraform needs to order a VPS
+  check [env]   which endpoint the credentials belong to, and whether the
+                consumer key carries every right terraform needs to order a VPS.
+                With an env name, checks that env's tfvars rather than 1Password
   request [env] ask OVH for a NEW consumer key carrying every scope terraform
                 needs, and save it. Needs only the application key, so it works
                 when the current key grants nothing. You must then open the
