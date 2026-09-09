@@ -27,7 +27,7 @@ spec:
         - name: zot-registry-credentials
       containers:
         - name: app
-          image: ghcr.io/ztsexton/ballroom-progress-tracker:main
+          image: ghcr.io/ztsexton/ballroom-progress-tracker:main-00abdf0
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
