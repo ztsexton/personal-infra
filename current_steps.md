@@ -8,7 +8,30 @@ tracker-staging.zachsexton.com and all 9 staging hosts serve over valid TLS.
 
 ---
 
-## 1. Store the OVH consumer key in 1Password
+## 1. Add INFRA_REPO_PAT to the tracker repo
+
+Pushing to `main` in `ballroom-progress-tracker` now builds an image **and**
+updates the staging manifests to point at it — but the update step needs a
+token to push to this repository, and that repo has no secrets at all:
+
+```
+$ gh secret list --repo ztsexton/ballroom-progress-tracker
+(empty)
+```
+
+`ballroom-competition-web` already has an `INFRA_REPO_PAT` doing exactly this.
+Copy the same token in:
+
+```bash
+gh secret set INFRA_REPO_PAT --repo ztsexton/ballroom-progress-tracker
+```
+
+Without it the build still publishes, but nothing redeploys — the symptom is a
+green build and an unchanged pod.
+
+---
+
+## 2. Store the OVH consumer key in 1Password
 
 The working consumer key exists **only** in
 `terraform/envs/staging-ovh/terraform.tfvars`, which is gitignored. Lose that
@@ -20,7 +43,7 @@ secret. `./scripts/setup/ovh-credentials.sh show` confirms the field landed.
 
 ---
 
-## 2. Decide what to do about Zot in production
+## 3. Decide what to do about Zot in production
 
 Zot was removed from git during the GHCR migration. The pod has been running
 **182 days** since, and production's `apps` application has been `OutOfSync`
@@ -34,7 +57,7 @@ or put it back in git if you still want a self-hosted registry.
 
 ---
 
-## 3. Rotate the credentials exposed earlier
+## 4. Rotate the credentials exposed earlier
 
 Several secrets were shown in full in a chat transcript during earlier work and
 should be considered compromised. Staging's own values are gone with the
