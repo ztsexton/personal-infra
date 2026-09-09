@@ -8,26 +8,21 @@ tracker-staging.zachsexton.com and all 9 staging hosts serve over valid TLS.
 
 ---
 
-## 1. Add INFRA_REPO_PAT to the tracker repo
+## 1. Review PR #16 — the platform admin console
 
-Pushing to `main` in `ballroom-progress-tracker` now builds an image **and**
-updates the staging manifests to point at it — but the update step needs a
-token to push to this repository, and that repo has no secrets at all:
+https://github.com/ztsexton/ballroom-progress-tracker/pull/16
 
-```
-$ gh secret list --repo ztsexton/ballroom-progress-tracker
-(empty)
-```
+`/platform/studios`: list every studio with member counts, open one for its
+roster and recent platform activity, create a studio with its first admin, and
+archive/reactivate it. Archiving now actually takes a studio offline —
+`Studio.status` was a column nothing read.
 
-`ballroom-competition-web` already has an `INFRA_REPO_PAT` doing exactly this.
-Copy the same token in:
+An agent wrote it and hit a spend limit before reporting, so the verification
+lives in a PR comment. `checks` passes, and that job runs the integration
+suite, so the 20 authorization-boundary tests did execute against a real
+Postgres. `e2e` fails, but has been failing since before the branch existed.
 
-```bash
-gh secret set INFRA_REPO_PAT --repo ztsexton/ballroom-progress-tracker
-```
-
-Without it the build still publishes, but nothing redeploys — the symptom is a
-green build and an unchanged pod.
+**Merging deploys to staging automatically**, migration hook included.
 
 ---
 
@@ -109,6 +104,8 @@ the cluster uses.
   git. It was never a Zot problem: the prune was queued behind ingress health
   that could not arrive. Production now reports "successfully synced (no more
   tasks)".
+- **`INFRA_REPO_PAT` is set on the tracker repo**, which was the last thing
+  blocking automatic deploys.
 - **Auto-deploy works end to end.** Push to `main` in the tracker repo →
   CI → image to GHCR → manifests updated here → Argo syncs → migration hook →
   new pod. Confirmed by `/api/health` reporting the deployed build:
