@@ -77,6 +77,12 @@ the cluster uses.
 
 ## Worth deciding, not blocking
 
+- **The tracker's e2e suite has been failing since 2026-09-08 06:53.**
+  `e2e/audit.spec.ts:17` times out on a `locator.click` after 240s. It fails on
+  every branch including dependabot's, so it predates the platform-admin work
+  and tonight's deployment changes. It means e2e currently gates nothing — a
+  merge can go green on `checks` while e2e has been red for a day.
+
 - **Production's init.sql grants in the wrong database.** It runs every GRANT
   against `postgres` because it never switches database, so `ballroom_scorer`
   has no `ballroom` grant at all — it only works because its tables already
