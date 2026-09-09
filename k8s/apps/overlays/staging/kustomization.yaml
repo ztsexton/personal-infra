@@ -18,6 +18,7 @@ resources:
   - ballroom-progress-tracker/service.yaml
   - ballroom-progress-tracker/onepassword-secret.yaml
   - ballroom-progress-tracker/migrate-job.yaml
+  - ballroom-progress-tracker/seed-job.yaml
   - ingress/ballroom-progress-tracker-ingress.yaml
 
 # Staging runs the whole stack on one small node, so the base's

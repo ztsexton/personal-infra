@@ -22,7 +22,16 @@ REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 
 VAULT="${OP_VAULT:-Kubernetes}"
 ITEM_DEFAULT="ballroom-progress-tracker-auth"
-FIELD="BETTER_AUTH_SECRET"
+
+# Every generated secret the tracker needs, in one item. The 1Password operator
+# turns each field into a key of the same-named Kubernetes secret, so adding a
+# field here is all it takes to make it available to a pod.
+#
+#   BETTER_AUTH_SECRET  session signing; rotating it signs everyone out
+#   SEED_ADMIN_PASSWORD the owner account the seed creates, so staging has a
+#                       real login rather than only @example.com fixtures
+FIELDS=(BETTER_AUTH_SECRET SEED_ADMIN_PASSWORD)
+FIELD="${FIELDS[0]}"
 PY="${PY:-python3}"
 
 red()   { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
@@ -99,7 +108,10 @@ for i in items:
     print("  %-44s %s" % (t if t else "<UNTITLED -- likely a failed create>", i.get("category","")))'
     return 0
   fi
-  printf '  %-22s %s\n' "$FIELD" "$(field_shape "$item")"
+  local f
+  for f in "${FIELDS[@]}"; do
+    FIELD="$f" printf '  %-22s %s\n' "$f" "$(FIELD="$f" field_shape "$item")"
+  done
   echo
   echo "  The cluster reads this through the OnePasswordItem CR at"
   echo "  k8s/apps/overlays/staging/ballroom-progress-tracker/onepassword-secret.yaml"
@@ -141,30 +153,40 @@ write_field() { # item value  -- creates or edits as needed
 
 cmd_create() {
   need_session
-  local item="${1:-$ITEM_DEFAULT}"
-  if item_exists "$item"; then
-    local shape; shape=$(field_shape "$item")
-    if [ "$shape" != "ABSENT" ] && [ "$shape" != "PRESENT BUT EMPTY" ]; then
-      warn "'$item' already has $FIELD ($shape)."
-      warn "Replacing it signs out every existing session. If that is what you"
-      warn "want, use: $0 rotate $item"
-      exit 1
-    fi
-  fi
+  local item="${1:-$ITEM_DEFAULT}" f shape wrote=0
 
-  step "generating $FIELD and writing it to '$item'"
-  write_field "$item" "$(generate)" || die "the write failed; see op's message above"
+  for f in "${FIELDS[@]}"; do
+    shape=$(FIELD="$f" field_shape "$item")
+    case "$shape" in
+      *chars)
+        # Already set. Not an error -- this command is safe to re-run when a
+        # new field is added to FIELDS, which is the usual reason to run it
+        # twice.
+        green "$f already set ($shape); leaving it alone"
+        continue ;;
+      UNREADABLE*)
+        # Only when the item itself is missing; a real read failure is fatal.
+        item_exists "$item" && die "cannot read $f on '$item': $shape" ;;
+    esac
+    step "generating $f and writing it to '$item'"
+    FIELD="$f" write_field "$item" "$(generate)" || die "the write failed; see op's message above"
+    wrote=1
+  done
+
+  [ "$wrote" = "1" ] || { green "nothing to do -- every field is already set"; return 0; }
 
   # Read back rather than trusting the exit code: `op item edit` has been seen
   # to exit 0 having changed nothing.
   # Only a length counts as success. UNREADABLE previously passed this check,
   # so the script announced "created" while telling you in the same sentence
   # that it could not find the item.
-  local shape; shape=$(field_shape "$item")
-  case "$shape" in
-    *chars) green "created. $FIELD is $shape (value not shown)" ;;
-    *) die "the write reported success but reading it back says: $shape" ;;
-  esac
+  for f in "${FIELDS[@]}"; do
+    shape=$(FIELD="$f" field_shape "$item")
+    case "$shape" in
+      *chars) green "$f is $shape (value not shown)" ;;
+      *) die "the write reported success but reading $f back says: $shape" ;;
+    esac
+  done
   echo
   echo "The operator syncs it within a minute. Confirm with:"
   echo "  KUBECONFIG=$REPO/kubeconfig-staging-ovh.yaml ./scripts/secrets.sh status"
@@ -173,6 +195,7 @@ cmd_create() {
 cmd_rotate() {
   need_session
   local item="${1:-$ITEM_DEFAULT}"
+  FIELD="${2:-$FIELD}"
   item_exists "$item" || die "'$item' does not exist -- use: $0 create $item"
 
   warn "Rotating $FIELD on '$item'."
@@ -199,12 +222,15 @@ case "${1:-}" in
   rotate) shift; cmd_rotate "$@" ;;
   *)
     cat >&2 <<EOF
-usage: $0 <command> [item]
+usage: $0 <command> [item] [field]
 
-  show     whether the item and field exist, and how long the value is
-  create   generate the secret and store it (refuses if one already exists)
-  rotate   replace an existing secret -- signs out every session
+  show            which fields exist and how long each value is
+  create          generate any missing field and store it; existing ones are
+                  left alone, so it is safe to re-run when a field is added
+  rotate [field]  replace one field -- rotating BETTER_AUTH_SECRET signs out
+                  every session
 
+Fields: ${FIELDS[*]}
 Item defaults to "$ITEM_DEFAULT", vault to "$VAULT" (override with OP_VAULT).
 EOF
     exit 1 ;;
