@@ -62,3 +62,9 @@ terraform/envs/*/.ssh_key
 
 # 1Password Connect credentials copy written by scripts/onepassword-connect.sh
 1password-credentials.json*
+
+# Python virtualenvs. Nothing here needs one -- the scripts fall back to
+# system python3 -- but VS Code's python extension auto-activates any .venv it
+# finds into every new integrated terminal, so keep stray ones out of the repo.
+.venv/
+venv/
