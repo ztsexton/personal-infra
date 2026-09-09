@@ -34,6 +34,12 @@ spec:
           env:
             - name: PORT
               value: "3000"
+            # Served by /api/health so a rollout can be confirmed from outside
+            # the cluster. Rewritten with the image tag by the tracker repo's
+            # update-deployment workflow -- the two must always agree, which is
+            # why the same job sets both.
+            - name: APP_VERSION
+              value: "main-00abdf0"
             # PGO generates this user's password and publishes the whole
             # connection string as `uri`. Nothing here knows the password.
             - name: DATABASE_URL
