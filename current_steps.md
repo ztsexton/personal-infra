@@ -8,51 +8,23 @@ tracker-staging.zachsexton.com and all 9 staging hosts serve over valid TLS.
 
 ---
 
-## 1. Review PR #16 — the platform admin console
-
-https://github.com/ztsexton/ballroom-progress-tracker/pull/16
-
-`/platform/studios`: list every studio with member counts, open one for its
-roster and recent platform activity, create a studio with its first admin, and
-archive/reactivate it. Archiving now actually takes a studio offline —
-`Studio.status` was a column nothing read.
-
-An agent wrote it and hit a spend limit before reporting, so the verification
-lives in a PR comment. `checks` passes, and that job runs the integration
-suite, so the 20 authorization-boundary tests did execute against a real
-Postgres. `e2e` fails, but has been failing since before the branch existed.
-
-**Merging deploys to staging automatically**, migration hook included.
-
----
-
-## 2. Store the OVH consumer key in 1Password
+## 1. Confirm the OVH consumer key is in 1Password
 
 The working consumer key exists **only** in
 `terraform/envs/staging-ovh/terraform.tfvars`, which is gitignored. Lose that
 file and staging cannot be rebuilt without going through the browser
 authorisation flow again.
 
-**Do:** add it to the OVH item in `Dev Vault` alongside the application key and
-secret. `./scripts/setup/ovh-credentials.sh show` confirms the field landed.
+**Check, then add if missing:**
 
----
+```bash
+eval $(op signin)
+./scripts/setup/ovh-credentials.sh show
+```
 
-## 3. Rotate the credentials exposed earlier
-
-Several secrets were shown in full in a chat transcript during earlier work and
-should be considered compromised. Staging's own values are gone with the
-Hetzner environment, but these are still live and are now also used by OVH
-staging:
-
-- `hcloud_token` — full control of the Hetzner account, including production
-- `cloudflare_api_token` — DNS for all three domains
-- `onepassword_connect_token` — reads every item in the Kubernetes vault
-- `onepassword_credentials_json`
-- The Zot admin password (`admin` / a value pasted in chat)
-
-The 1Password Connect token is the one to do first: it can read every secret
-the cluster uses.
+It lists the item's fields and their sizes. If `consumer key` is absent, copy it
+from `terraform/envs/staging-ovh/terraform.tfvars` into the OVH item in
+`Dev Vault` alongside the application key and secret.
 
 ---
 
@@ -91,6 +63,15 @@ the cluster uses.
   their auth origins.
 
 ## Recently finished
+
+- **PR #16 merged and deployed** — the platform console is live at
+  `/platform/studios`, and `zsexton2011@gmail.com` is now a platform admin, so
+  it is actually reachable. That grant is re-asserted on every app start, so it
+  holds whichever tenant the account is signed into.
+- **A deploy completed with no intervention** for the first time: merge → CI →
+  GHCR → manifests → Argo → migration → pod, all unattended. That confirms the
+  Traefik `publishedService` fix was the cause of the sync deadlock rather than
+  something needing per-deploy nursing.
 
 - **Argo CD can complete a sync again, in both environments.** Traefik was not
   publishing its address onto Ingress `status.loadBalancer`, so Argo judged
