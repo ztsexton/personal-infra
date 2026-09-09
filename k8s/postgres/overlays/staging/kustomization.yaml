@@ -47,3 +47,37 @@ patches:
           databases:
             - ballroom_progress
 
+  # Grants for both users, in the databases they actually use.
+  #
+  # The base init.sql grants without switching database, so psql runs it all
+  # against `postgres` -- the ACL on ballroom_scorer's public schema shows no
+  # ballroom entry at all, only the default. Since PostgreSQL 15 the public
+  # schema grants PUBLIC nothing but USAGE, so a user who does not own the
+  # database cannot create tables in it, which is exactly how the tracker's
+  # first migration failed:
+  #
+  #   ERROR: permission denied for schema public
+  #
+  # \connect switches database inside a single psql run, so each GRANT lands
+  # where it is meant to.
+  - target:
+      kind: ConfigMap
+      name: ballroom-db-init
+    patch: |-
+      - op: replace
+        path: /data/init.sql
+        value: |
+          \connect ballroom_scorer
+          GRANT ALL ON SCHEMA public TO ballroom;
+          GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ballroom;
+          GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ballroom;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ballroom;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ballroom;
+
+          \connect ballroom_progress
+          GRANT ALL ON SCHEMA public TO progress;
+          GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO progress;
+          GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO progress;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO progress;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO progress;
+
