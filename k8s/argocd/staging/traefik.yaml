@@ -31,7 +31,7 @@ spec:
           enabled: true
           isDefaultClass: true
         providers:
-          kubernetesingress:
+          kubernetesIngress:
             enabled: true
             allowExternalNameServices: true
             # Write the LoadBalancer address back onto every Ingress's
@@ -47,7 +47,7 @@ spec:
             # events explaining it.
             publishedService:
               enabled: true
-          kubernetescrd:
+          kubernetesCRD:
             enabled: true
             allowExternalNameServices: true
         api:
