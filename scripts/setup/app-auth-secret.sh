@@ -28,9 +28,9 @@ ITEM_DEFAULT="ballroom-progress-tracker-auth"
 # field here is all it takes to make it available to a pod.
 #
 #   BETTER_AUTH_SECRET  session signing; rotating it signs everyone out
-#   SEED_ADMIN_PASSWORD the owner account the seed creates, so staging has a
+#   BOOTSTRAP_ADMIN_PASSWORD the owner account the seed creates, so staging has a
 #                       real login rather than only @example.com fixtures
-FIELDS=(BETTER_AUTH_SECRET SEED_ADMIN_PASSWORD)
+FIELDS=(BETTER_AUTH_SECRET BOOTSTRAP_ADMIN_PASSWORD)
 FIELD="${FIELDS[0]}"
 PY="${PY:-python3}"
 

@@ -56,6 +56,23 @@ spec:
             # every request falls back to DEFAULT_STUDIO_SLUG.
             - name: DEFAULT_STUDIO_SLUG
               value: "demo-ballroom-studio"
+            # Startup bootstrap (src/instrumentation.ts). Tenant resolution
+            # falls back to DEFAULT_STUDIO_SLUG, so on an empty database every
+            # request is a 404 until that studio exists. These create it, plus
+            # one admin who can sign in, and do nothing once it is there.
+            - name: BOOTSTRAP_ADMIN_EMAIL
+              value: "zsexton2011@gmail.com"
+            - name: BOOTSTRAP_ADMIN_NAME
+              value: "Zach Sexton"
+            - name: BOOTSTRAP_STUDIO_NAME
+              value: "Demo Ballroom Studio"
+            - name: BOOTSTRAP_STUDIO_TIMEZONE
+              value: "America/New_York"
+            - name: BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ballroom-progress-tracker-auth
+                  key: BOOTSTRAP_ADMIN_PASSWORD
           # /api/health runs a real `SELECT 1` through Prisma, so readiness
           # genuinely means "connected to its database" rather than "process
           # started".
