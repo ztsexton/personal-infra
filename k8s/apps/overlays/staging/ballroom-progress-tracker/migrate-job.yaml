@@ -29,7 +29,7 @@ spec:
         - name: zot-registry-credentials
       containers:
         - name: migrate
-          image: ghcr.io/ztsexton/ballroom-progress-tracker:main-00abdf0
+          image: ghcr.io/ztsexton/ballroom-progress-tracker:main-3426585
           # `main` is a mutable tag, and the default pull policy for a tag that
           # is not `latest` is IfNotPresent -- so once the node has cached any
           # :main it will keep running it, however many times the tag is

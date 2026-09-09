@@ -27,7 +27,7 @@ spec:
         - name: zot-registry-credentials
       containers:
         - name: app
-          image: ghcr.io/ztsexton/ballroom-progress-tracker:main-00abdf0
+          image: ghcr.io/ztsexton/ballroom-progress-tracker:main-3426585
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
@@ -39,7 +39,7 @@ spec:
             # update-deployment workflow -- the two must always agree, which is
             # why the same job sets both.
             - name: APP_VERSION
-              value: "main-00abdf0"
+              value: "main-3426585"
             # PGO generates this user's password and publishes the whole
             # connection string as `uri`. Nothing here knows the password.
             - name: DATABASE_URL
