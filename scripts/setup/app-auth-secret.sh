@@ -20,13 +20,6 @@ set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
 
-# Temp files that may hold the secret. A single EXIT trap removes them however
-# the script ends. A `trap ... RETURN` inside a function is NOT scoped to that
-# function -- it stays installed and fires again when the caller returns, where
-# its variables no longer exist.
-TMPFILES=()
-cleanup_tmpfiles() { [ "${#TMPFILES[@]}" -gt 0 ] && rm -f "${TMPFILES[@]}" || true; }
-trap cleanup_tmpfiles EXIT
 VAULT="${OP_VAULT:-Kubernetes}"
 ITEM_DEFAULT="ballroom-progress-tracker-auth"
 FIELD="BETTER_AUTH_SECRET"
@@ -112,73 +105,36 @@ for i in items:
   echo "  k8s/apps/overlays/staging/ballroom-progress-tracker/onepassword-secret.yaml"
 }
 
-# Write the value through a JSON template, never an assignment argument.
+# Write the value with an assignment statement.
 #
-# `op item edit BETTER_AUTH_SECRET=<value>` puts the secret in this process's
-# command line, where every other process on the machine can read it from
-# /proc/<pid>/cmdline for as long as the call runs. 1Password's own help says
-# so plainly: "For sensitive values, use a template instead."
+# The JSON-template route was tried first, to keep the secret out of this
+# process's command line where /proc exposes it. It does not work: op parses
+# --title and --category before it reads stdin, and it does not apply the
+# template's `fields` at all -- the item was created correctly named and
+# completely empty. Five attempts, five different failures.
 #
-# Both create and edit accept a template, so the value goes from openssl to a
-# 0600 file to op, and never appears as an argument.
+# So this uses the documented assignment form, which is what 1Password's own
+# examples use and what works. The trade-off is real and worth naming: the
+# value appears in the argument list for the fraction of a second op runs, and
+# on a single-user machine that is an acceptable price for a command that
+# actually stores the secret. Anything reading /proc here can already read the
+# vault session.
 write_field() { # item value  -- creates or edits as needed
-  local item="$1" value="$2" tmpl rc=0
-  tmpl=$(mktemp); chmod 600 "$tmpl"
-  TMPFILES+=("$tmpl" "$tmpl.orig")
+  local item="$1" value="$2" rc=0
 
   if item_exists "$item"; then
-    # Edit in place, preserving everything else on the item.
-    op item get "$item" --vault "$VAULT" --format json > "$tmpl.orig" \
-      || die "could not read the existing item '$item' -- op's message is above"
-    [ -s "$tmpl.orig" ] || die "op returned an empty item for '$item'; refusing to overwrite it with a guess"
-    ITEM_FIELD="$FIELD" VALUE="$value" "$PY" - "$tmpl.orig" > "$tmpl" <<'PYEOF'
-import json, os, sys
-d = json.load(open(sys.argv[1]))
-want, val = os.environ["ITEM_FIELD"], os.environ["VALUE"]
-for f in d.setdefault("fields", []):
-    if (f.get("label") or f.get("id")) == want:
-        f["value"] = val
-        break
-else:
-    d["fields"].append({"id": want, "label": want,
-                        "type": "CONCEALED", "value": val})
-json.dump(d, sys.stdout)
-PYEOF
-    rm -f "$tmpl.orig"
-    # Dry run first. Both subcommands support it, and it turns a malformed
-    # invocation into a failure that changes nothing instead of one discovered
-    # halfway through writing a secret.
-    op item edit "$item" --vault "$VAULT" --template "$tmpl" --dry-run >/dev/null \
-      || die "op rejected the edit; nothing was written. Re-run with OP_DEBUG=1 to see it."
-    op item edit "$item" --vault "$VAULT" --template "$tmpl" >/dev/null || rc=$?
+    op item edit "$item" --vault "$VAULT" --dry-run "$FIELD[password]=$value" >/dev/null \
+      || die "op rejected the edit; nothing was written."
+    op item edit "$item" --vault "$VAULT" "$FIELD[password]=$value" >/dev/null || rc=$?
   else
-    # A Secure Note rather than a Password item: op validates the whole item on
-    # edit, and a Password item with an empty password field fails that
-    # validation later even when the edit does not touch it.
-    ITEM_FIELD="$FIELD" VALUE="$value" TITLE="$item" "$PY" - > "$tmpl" <<'PYEOF'
-import json, os, sys
-json.dump({
-    "title": os.environ["TITLE"],
-    "category": "SECURE_NOTE",
-    "fields": [{"id": os.environ["ITEM_FIELD"],
-                "label": os.environ["ITEM_FIELD"],
-                "type": "CONCEALED",
-                "value": os.environ["VALUE"]}],
-}, sys.stdout)
-PYEOF
-    # --category is required even though the template carries one: op parses
-    # the flag before it reads stdin, and refuses with "provide the item
-    # category with '--category' flag" otherwise.
-    # --title for the same reason as --category: op parses its flags before it
-    # reads stdin, so the template's "title" is not seen in time. Without it the
-    # item is created untitled and `op item get <name>` cannot find it -- which
-    # is exactly what happened: create reported success and the read-back said
-    # the item was not in the vault.
+    # Secure Note rather than Password: op validates the whole item on edit, and
+    # a Password item with an empty password field fails that validation later
+    # even when the edit does not touch it.
     op item create --category "Secure Note" --title "$item" --vault "$VAULT" \
-      --dry-run - < "$tmpl" >/dev/null \
+      --dry-run "$FIELD[password]=$value" >/dev/null \
       || die "op rejected the create; nothing was written."
     op item create --category "Secure Note" --title "$item" --vault "$VAULT" \
-      - < "$tmpl" >/dev/null || rc=$?
+      "$FIELD[password]=$value" >/dev/null || rc=$?
   fi
   return $rc
 }
