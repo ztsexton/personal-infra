@@ -19,6 +19,14 @@
 set -euo pipefail
 
 REPO="$(cd "$(dirname "$0")/../.." && pwd)"
+
+# Temp files that may hold the secret. A single EXIT trap removes them however
+# the script ends. A `trap ... RETURN` inside a function is NOT scoped to that
+# function -- it stays installed and fires again when the caller returns, where
+# its variables no longer exist.
+TMPFILES=()
+cleanup_tmpfiles() { [ "${#TMPFILES[@]}" -gt 0 ] && rm -f "${TMPFILES[@]}" || true; }
+trap cleanup_tmpfiles EXIT
 VAULT="${OP_VAULT:-Kubernetes}"
 ITEM_DEFAULT="ballroom-progress-tracker-auth"
 FIELD="BETTER_AUTH_SECRET"
@@ -83,6 +91,19 @@ cmd_show() {
   step "item '$item' in vault '$VAULT'"
   if ! item_exists "$item"; then
     warn "  does not exist yet -- create it with: $0 create $item"
+    echo
+    # A create that lost its title lands as an untitled item holding a real
+    # secret, and `op item get <name>` will never find it. List the vault so a
+    # stray one is visible rather than left to be discovered by accident.
+    step "everything in vault '$VAULT', so a mistitled item is not missed"
+    op item list --vault "$VAULT" --format json 2>/dev/null | "$PY" -c '
+import json, sys
+items = json.load(sys.stdin)
+if not items:
+    print("  (vault is empty)")
+for i in items:
+    t = (i.get("title") or "").strip()
+    print("  %-44s %s" % (t if t else "<UNTITLED -- likely a failed create>", i.get("category","")))'
     return 0
   fi
   printf '  %-22s %s\n' "$FIELD" "$(field_shape "$item")"
@@ -103,9 +124,7 @@ cmd_show() {
 write_field() { # item value  -- creates or edits as needed
   local item="$1" value="$2" tmpl rc=0
   tmpl=$(mktemp); chmod 600 "$tmpl"
-  # Trap rather than a trailing rm: on any failure below, `set -e` would exit
-  # and leave the secret sitting in /tmp.
-  trap 'rm -f "$tmpl"' RETURN
+  TMPFILES+=("$tmpl" "$tmpl.orig")
 
   if item_exists "$item"; then
     # Edit in place, preserving everything else on the item.
@@ -150,9 +169,16 @@ PYEOF
     # --category is required even though the template carries one: op parses
     # the flag before it reads stdin, and refuses with "provide the item
     # category with '--category' flag" otherwise.
-    op item create --category "Secure Note" --vault "$VAULT" --dry-run - < "$tmpl" >/dev/null \
-      || die "op rejected the create; nothing was written. Re-run with OP_DEBUG=1 to see it."
-    op item create --category "Secure Note" --vault "$VAULT" - < "$tmpl" >/dev/null || rc=$?
+    # --title for the same reason as --category: op parses its flags before it
+    # reads stdin, so the template's "title" is not seen in time. Without it the
+    # item is created untitled and `op item get <name>` cannot find it -- which
+    # is exactly what happened: create reported success and the read-back said
+    # the item was not in the vault.
+    op item create --category "Secure Note" --title "$item" --vault "$VAULT" \
+      --dry-run - < "$tmpl" >/dev/null \
+      || die "op rejected the create; nothing was written."
+    op item create --category "Secure Note" --title "$item" --vault "$VAULT" \
+      - < "$tmpl" >/dev/null || rc=$?
   fi
   return $rc
 }
@@ -175,10 +201,14 @@ cmd_create() {
 
   # Read back rather than trusting the exit code: `op item edit` has been seen
   # to exit 0 having changed nothing.
+  # Only a length counts as success. UNREADABLE previously passed this check,
+  # so the script announced "created" while telling you in the same sentence
+  # that it could not find the item.
   local shape; shape=$(field_shape "$item")
-  [ "$shape" != "ABSENT" ] && [ "$shape" != "PRESENT BUT EMPTY" ] \
-    || die "wrote the field but reading it back says '$shape'"
-  green "created. $FIELD is $shape (value not shown)"
+  case "$shape" in
+    *chars) green "created. $FIELD is $shape (value not shown)" ;;
+    *) die "the write reported success but reading it back says: $shape" ;;
+  esac
   echo
   echo "The operator syncs it within a minute. Confirm with:"
   echo "  KUBECONFIG=$REPO/kubeconfig-staging-ovh.yaml ./scripts/secrets.sh status"
