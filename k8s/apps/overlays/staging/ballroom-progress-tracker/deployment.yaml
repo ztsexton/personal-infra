@@ -47,10 +47,10 @@ spec:
                   name: ballroom-progress-tracker-auth
                   key: BETTER_AUTH_SECRET
             - name: BETTER_AUTH_URL
-              value: "https://progress-staging.zachsexton.com"
+              value: "https://tracker-staging.zachsexton.com"
             # Better Auth rejects an auth request whose Origin is not listed.
             - name: AUTH_TRUSTED_ORIGINS
-              value: "https://progress-staging.zachsexton.com"
+              value: "https://tracker-staging.zachsexton.com"
             # APP_BASE_DOMAIN is deliberately unset. It exists to serve
             # per-studio subdomains, which staging does not do; with it unset
             # every request falls back to DEFAULT_STUDIO_SLUG.

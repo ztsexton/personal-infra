@@ -10,9 +10,9 @@ spec:
     # Certificate of its own and no new ACME order.
     - secretName: zachsexton-wildcard-tls
       hosts:
-        - progress-staging.zachsexton.com
+        - tracker-staging.zachsexton.com
   rules:
-    - host: progress-staging.zachsexton.com
+    - host: tracker-staging.zachsexton.com
       http:
         paths:
           - path: /

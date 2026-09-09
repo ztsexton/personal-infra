@@ -182,8 +182,35 @@ for a in json.load(sys.stdin).get("items", []):
   green "terminated. Argo CD will re-sync within its refresh interval."
 }
 
+# Ask Argo CD to try again.
+#
+# Auto-sync gives up after a handful of failures and reports
+# "one or more synchronization tasks completed unsuccessfully (retried 5
+# times)". It does not try again on its own, so once the underlying cause is
+# fixed -- a corrected image, a secret that now exists -- nothing happens until
+# a sync is requested. Pushing an empty commit works too; this avoids polluting
+# history to nudge a controller.
+cmd_sync() {
+  preflight
+  local app="${1:-}"
+  [ -n "$app" ] || die "usage: $0 sync <application>"
+  k get application "$app" >/dev/null 2>&1 || die "no Application named '$app'"
+
+  step "before"
+  k get application "$app" -o jsonpath='  sync={.status.sync.status} phase={.status.operationState.phase}{"\n"}' 2>/dev/null
+
+  # Setting .operation is exactly what the UI's Sync button does.
+  k patch application "$app" --type merge -p \
+    '{"operation":{"initiatedBy":{"username":"argocd.sh"},"sync":{"revision":"HEAD"},"retry":{"limit":2}}}' >/dev/null
+
+  green "sync requested"
+  echo
+  echo "Watch it with:  kubectl -n argocd get application $app -w"
+}
+
 case "${1:-}" in
   status) cmd_status ;;
+  sync)   shift; cmd_sync "$@" ;;
   unstick) cmd_unstick ;;
   reload) cmd_reload ;;
   *)

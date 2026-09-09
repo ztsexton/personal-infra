@@ -20,7 +20,7 @@ locals {
     zachsexton_spotifybutler_staging = { zone = "zachsexton", name = "spotifybutler-staging" }
     zachsexton_grafana_staging       = { zone = "zachsexton", name = "grafana-staging" }
     zachsexton_syllabus_staging      = { zone = "zachsexton", name = "syllabus-staging" }
-    zachsexton_progress_staging      = { zone = "zachsexton", name = "progress-staging" }
+    zachsexton_tracker_staging       = { zone = "zachsexton", name = "tracker-staging" }
 
     petfoodfinder_staging = { zone = "petfoodfinder", name = "staging" }
   }
