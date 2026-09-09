@@ -39,20 +39,35 @@ The deployment reads `BETTER_AUTH_SECRET` from a 1Password-synced secret that
 does not exist yet. Without it the pod stays in `CreateContainerConfigError`,
 even once the image is published.
 
-**Do:**
+**First, clean up after the failed attempt.** The run on 2026-09-08 created an
+item with **no title** — `op` parses `--title` before it reads the template, so
+the title in the template was ignored. That item holds a real generated secret
+and `op item get` cannot find it by name.
 
 ```bash
 eval $(op signin)
+./scripts/setup/app-auth-secret.sh show
+```
+
+`show` now lists everything in the `Kubernetes` vault and flags anything
+untitled. Delete the stray one in the 1Password app, then:
+
+```bash
 ./scripts/setup/app-auth-secret.sh create
 ```
 
 The script generates the value, stores it in vault `Kubernetes` as item
 `ballroom-progress-tracker-auth`, and never prints it.
 
-If it errors, paste the message — it now reports 1Password's own words rather
-than a Python traceback. This path has never run successfully; there is no
-1Password session reachable from Claude's shell, so every fix so far was
-written from `op --help` rather than tested.
+This path has still never completed successfully. There is no 1Password session
+reachable from Claude's shell, so every fix has been written from `op --help`
+rather than tested — four attempts so far, each failing differently. If it
+fails again, running this once by hand is a reasonable way out:
+
+```bash
+op item create --category "Secure Note" --title ballroom-progress-tracker-auth \
+  --vault Kubernetes "BETTER_AUTH_SECRET[password]=$(openssl rand -base64 32)"
+```
 
 ---
 
