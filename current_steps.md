@@ -43,21 +43,7 @@ secret. `./scripts/setup/ovh-credentials.sh show` confirms the field landed.
 
 ---
 
-## 3. Decide what to do about Zot in production
-
-Zot was removed from git during the GHCR migration. The pod has been running
-**182 days** since, and production's `apps` application has been `OutOfSync`
-ever since because the prune never completed.
-
-This is not urgent and nothing is broken by it, but production's GitOps is not
-converged while it stands, so any future change to that app queues behind it.
-
-**Decide:** prune it (it serves no images any more — both apps pull from GHCR),
-or put it back in git if you still want a self-hosted registry.
-
----
-
-## 4. Rotate the credentials exposed earlier
+## 3. Rotate the credentials exposed earlier
 
 Several secrets were shown in full in a chat transcript during earlier work and
 should be considered compromised. Staging's own values are gone with the
@@ -104,6 +90,23 @@ the cluster uses.
   their auth origins.
 
 ## Recently finished
+
+- **Argo CD can complete a sync again, in both environments.** Traefik was not
+  publishing its address onto Ingress `status.loadBalancer`, so Argo judged
+  every Ingress `Progressing` forever and `PruneLast=true` held each sync open
+  indefinitely. Two bugs: `publishedService` was never enabled, and the Helm
+  keys were `kubernetesingress`/`kubernetescrd` where the chart wants
+  `kubernetesIngress`/`kubernetesCRD` — Helm drops unknown keys silently, so
+  everything under them, including `allowExternalNameServices`, had never taken
+  effect in either environment.
+- **Zot is finally gone from production**, 182 days after being removed from
+  git. It was never a Zot problem: the prune was queued behind ingress health
+  that could not arrive. Production now reports "successfully synced (no more
+  tasks)".
+- **Auto-deploy works end to end.** Push to `main` in the tracker repo →
+  CI → image to GHCR → manifests updated here → Argo syncs → migration hook →
+  new pod. Confirmed by `/api/health` reporting the deployed build:
+  `{"ok":true,"db":"connected","version":"main-ef50d01"}`.
 
 - **ballroom-progress-tracker is live** at tracker-staging.zachsexton.com, with
   the studio and an admin account created at app startup rather than by a seed
