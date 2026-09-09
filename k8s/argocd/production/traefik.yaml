@@ -34,6 +34,19 @@ spec:
           kubernetesingress:
             enabled: true
             allowExternalNameServices: true
+            # Write the LoadBalancer address back onto every Ingress's
+            # status.loadBalancer.
+            #
+            # Without it that field stays empty, and Argo CD judges an Ingress
+            # healthy by exactly that field -- so every Ingress sits at
+            # Progressing forever. Combined with PruneLast=true, which holds a
+            # sync open until all resources report healthy, no sync of the apps
+            # Application can ever complete: manifests update in git, Argo
+            # reaches the right revision, and the Deployment is never applied.
+            # A staging deploy hung for 50 minutes this way with nothing in the
+            # events explaining it.
+            publishedService:
+              enabled: true
           kubernetescrd:
             enabled: true
             allowExternalNameServices: true
