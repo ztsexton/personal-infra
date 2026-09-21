@@ -68,3 +68,6 @@ terraform/envs/*/.ssh_key
 # finds into every new integrated terminal, so keep stray ones out of the repo.
 .venv/
 venv/
+
+# argocd-secret snapshots taken by scripts/argocd.sh before a password reset
+.argocd-backups/

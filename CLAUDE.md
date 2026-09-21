@@ -138,6 +138,39 @@ Current 1Password-synced secrets:
 - `zot-auth` — Zot htpasswd file (web namespace)
 - `zot-registry-credentials` — Docker config for pulling from Zot (web namespace)
 - `ballroom-competition-web-firebase` — Firebase env vars (web namespace)
+- `argocd-secret` — Argo CD's own admin credential (argocd namespace, **staging only**)
+
+### Argo CD's admin password
+
+Argo CD reads the admin password only from the `argocd-secret` Secret, keys
+`admin.password` (bcrypt) and `admin.passwordMtime`. There is no `valueFrom`
+indirection, so putting 1Password in charge means the operator owns that Secret
+outright — `k8s/argocd/staging/argocd-secret.yaml`.
+
+That makes it the one OnePasswordItem here with teeth:
+
+- The operator replaces the Secret's data wholesale, so the item must carry
+  **every** key, not just the password. `argocd-secret` also holds
+  `server.secretkey` (session JWTs) and, on production, `tls.crt`/`tls.key`. A
+  field missing from the item is a key deleted from the cluster.
+- The Secret gets `ownerReferences` to the CR, and the root Application prunes.
+  Deleting that manifest garbage-collects the admin password with it.
+
+```bash
+./scripts/setup/argocd-admin-secret.sh show   staging-ovh   # read-only, no values
+./scripts/setup/argocd-admin-secret.sh create staging-ovh   # build the item from the LIVE Secret
+./scripts/setup/argocd-admin-secret.sh verify staging-ovh   # does the stored login actually work
+./scripts/setup/argocd-admin-secret.sh rotate staging-ovh
+```
+
+Two items, deliberately: `argocd-admin-staging` holds the hash the operator
+syncs, and `Argo CD (staging)` holds the plaintext humans log in with. No
+plaintext ever reaches the cluster.
+
+Production is **not** on this yet — it still takes its password from
+`argocd-secret` directly. Recover or reset it with
+`./scripts/argocd.sh --env production password show|reset`, which refuses to
+patch once a cluster is operator-owned.
 
 ## Server Access
 
@@ -228,9 +261,16 @@ to find out whether OVH can host this stack before anything depends on it.
 ./scripts/staging-ovh.sh up
 ```
 
-Deliberately not wired to DNS or Argo CD: the staging manifests hardcode the
-Hetzner address, so a second cluster on the same git path would sit with a
-permanently pending LoadBalancer.
+It **is** wired to DNS and Argo CD, despite what this file said until
+2026-09-21: the cluster runs a root Application syncing `k8s/argocd/staging @
+HEAD` with `prune` and `selfHeal`, serves `argocd-staging.zachsexton.com`, and
+has the full stack synced. A manifest added under `k8s/argocd/staging/`
+therefore reaches this cluster.
+
+What is still true is the IP: the staging manifests hardcode the Hetzner
+address, so `metallb` sits permanently OutOfSync here and the LoadBalancer
+never takes that address. That is the one thing to fix before treating this as
+a full staging environment.
 
 Three things differ from Hetzner and shape the whole environment:
 
