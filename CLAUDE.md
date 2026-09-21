@@ -159,9 +159,26 @@ That makes it the one OnePasswordItem here with teeth:
 ```bash
 ./scripts/setup/argocd-admin-secret.sh show   staging-ovh   # read-only, no values
 ./scripts/setup/argocd-admin-secret.sh create staging-ovh   # build the item from the LIVE Secret
+git add -A && git commit && git push                        # Argo CD syncs the CR
+./scripts/setup/argocd-admin-secret.sh adopt  staging-ovh   # REQUIRED -- see below
 ./scripts/setup/argocd-admin-secret.sh verify staging-ovh   # does the stored login actually work
 ./scripts/setup/argocd-admin-secret.sh rotate staging-ovh
 ```
+
+**`adopt` is not optional.** Pushing the CR deletes `argocd-secret` once. The
+operator copies the CR's labels onto the Secret, including Argo CD's own
+`argocd.argoproj.io/instance` tracking label, so a Secret the operator *adopts*
+becomes a resource Argo CD believes it owns and cannot find in git — and prunes.
+Secrets the operator *creates* carry an ownerReference from birth and are treated
+as children instead, which is why the other eight have survived for months.
+`adopt` rebuilds the Secret under the operator's ownership; the rebuilt one
+survived a forced root sync. This bit staging on 2026-09-21.
+
+A from-scratch rebuild therefore does **not** come back with a working Argo CD
+password on its own — `adopt` is an explicit step. See `STAGING-REBUILD.md`
+step 6, which also covers the ordering constraint for a cluster that has never
+had this before (the 1Password item can only be built from a live Secret, so the
+first bootstrap must happen first).
 
 Two items, deliberately: `argocd-admin-staging` holds the hash the operator
 syncs, and `Argo CD (staging)` holds the plaintext humans log in with. No

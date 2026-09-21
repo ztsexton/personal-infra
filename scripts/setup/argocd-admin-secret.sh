@@ -189,13 +189,21 @@ secret_value() { # key
   printf '%s' "$b64" | base64 -d 2>/dev/null || true
 }
 
+# Read the JSON first rather than piping kubectl straight into python: under
+# `set -o pipefail` a NotFound `kubectl get` fails the pipeline even when the
+# python arm handled it and printed a verdict, so the `|| echo` fallback fired
+# as well and this returned two lines ("absent\nabsent"), which printf then
+# rendered as a stray second line of output.
 secret_owner() {
-  k get secret argocd-secret -o json 2>/dev/null | "$PY" -c '
+  local json
+  json=$(k get secret argocd-secret -o json 2>/dev/null || true)
+  [ -n "$json" ] || { echo absent; return 0; }
+  printf '%s' "$json" | "$PY" -c '
 import json, sys
 try:
     d = json.load(sys.stdin)
 except Exception:
-    print("absent"); sys.exit(0)
+    print("unreadable"); sys.exit(0)
 m = d.get("metadata", {})
 for o in (m.get("ownerReferences") or []):
     if o.get("kind") == "OnePasswordItem":
@@ -208,7 +216,7 @@ if "kubectl.kubernetes.io/last-applied-configuration" in ann:
 elif (m.get("labels") or {}).get("app.kubernetes.io/managed-by") == "Helm":
     print("helm")
 else:
-    print("unmanaged")' || echo absent
+    print("unmanaged")' || echo unknown
 }
 
 # --- the 1Password item --------------------------------------------------------
@@ -258,6 +266,23 @@ import json, sys
 try: d = json.load(sys.stdin)
 except Exception: sys.exit(0)
 print("|".join(str(d.get(k, "")) for k in ("updated_at", "updatedAt", "version")).strip("|"))' || true
+}
+
+wait_for_operator() {
+  step "waiting for the operator to create argocd-secret"
+  local i owner_now=""
+  for i in $(seq 1 60); do
+    sleep 2
+    owner_now=$(secret_owner)
+    case "$owner_now" in
+      onepassword*) echo; green "created, and owned by the operator ($owner_now)"; return 0 ;;
+    esac
+    printf '.'
+  done
+  echo
+  red "the operator has not created argocd-secret after 120s (state: $owner_now)"
+  red "check:  kubectl --kubeconfig $KUBECONFIG_PATH -n onepassword logs deploy/onepassword-connect-operator --tail=40"
+  return 1
 }
 
 # --- commands ------------------------------------------------------------------
@@ -373,12 +398,11 @@ cmd_create() {
   printf '  password: %s\n' "$pass"
   warn "It is in 1Password as '$LOGIN_ITEM'. It is NOT in the cluster yet."
   echo
-  echo "The cluster still has the old password. It changes when the operator takes"
-  echo "over argocd-secret:"
+  echo "The cluster still has the old password. Finish in this order -- step 2 is"
+  echo "REQUIRED, not a fallback:"
   echo "  1. commit and push k8s/argocd/staging/argocd-secret.yaml"
-  echo "  2. $0 verify $ENV_NAME"
-  echo "  3. if the operator will not overwrite a Secret it does not own:"
-  echo "     $0 adopt $ENV_NAME"
+  echo "  2. $0 adopt $ENV_NAME    # Argo CD prunes the adopted Secret; this rebuilds it"
+  echo "  3. $0 verify $ENV_NAME"
 }
 
 cmd_rotate() {
@@ -433,6 +457,28 @@ cmd_adopt() {
 
   item_exists "$ITEM" || die "'$ITEM' does not exist -- run: $0 create $ENV_NAME"
 
+  local owner; owner=$(secret_owner)
+  case "$owner" in
+    onepassword*) green "argocd-secret is already operator-owned ($owner) -- nothing to adopt"; return 0 ;;
+  esac
+
+  # The Secret is gone. That is the normal state immediately after pushing the
+  # CR, because Argo CD prunes the Secret it finds itself suddenly labelled as
+  # owning (see the manifest comment). There is nothing to back up and nothing
+  # to delete -- the operator just has to be told to build a fresh one, and it
+  # will not do that on its own until its poll interval comes round.
+  if [ "$owner" = "absent" ]; then
+    k get onepassworditem argocd-secret >/dev/null 2>&1 \
+      || die "neither argocd-secret nor its OnePasswordItem exists on $ENV_NAME.
+  Push k8s/argocd/staging/argocd-secret.yaml and let Argo CD sync it first."
+    step "argocd-secret is absent; nudging the operator to create it"
+    k annotate onepassworditem argocd-secret "force-resync=$(date +%s)" --overwrite >/dev/null
+    wait_for_operator || exit 1
+    echo
+    cmd_verify
+    return 0
+  fi
+
   step "checking the item covers every key in the live Secret"
   local entries missing=() key value
   entries=$(secret_entries)
@@ -447,11 +493,6 @@ cmd_adopt() {
   fi
   green "  every key present in the item"
 
-  local owner; owner=$(secret_owner)
-  case "$owner" in
-    onepassword*) green "argocd-secret is already operator-owned ($owner) -- nothing to adopt"; return 0 ;;
-  esac
-
   mkdir -p "$BACKUP_DIR"; chmod 700 "$BACKUP_DIR"
   local backup="$BACKUP_DIR/argocd-secret-$ENV_NAME-$(date -u +%Y%m%dT%H%M%SZ).yaml"
   ( umask 077; k get secret argocd-secret -o yaml >"$backup" )
@@ -465,24 +506,11 @@ cmd_adopt() {
   [ "$reply" = "adopt" ] || die "aborted"
 
   k delete secret argocd-secret >/dev/null
-  step "waiting for the operator to recreate it"
-  local i owner_now=""
-  for i in $(seq 1 60); do
-    sleep 2
-    owner_now=$(secret_owner)
-    case "$owner_now" in
-      onepassword*) break ;;
-    esac
-    printf '.'
-  done
-  echo
-  case "$owner_now" in
-    onepassword*) green "recreated and owned by the operator ($owner_now)" ;;
-    *) red "the operator has not recreated argocd-secret after 120s (state: $owner_now)"
-       red "restore it now with:"
-       red "  kubectl --kubeconfig $KUBECONFIG_PATH -n argocd apply -f $backup"
-       exit 1 ;;
-  esac
+  wait_for_operator || {
+    red "restore it now with:"
+    red "  kubectl --kubeconfig $KUBECONFIG_PATH -n argocd apply -f $backup"
+    exit 1
+  }
 
   echo
   cmd_verify
@@ -497,6 +525,19 @@ cmd_verify() {
 
   local owner; owner=$(secret_owner)
   printf '  argocd-secret written by: %s\n' "$owner"
+  case "$owner" in
+    onepassword*) ;;
+    absent)
+      red "  argocd-secret does not exist. Argo CD has no admin password and no"
+      red "  session key. Rebuild it:  $0 adopt $ENV_NAME" ;;
+    *)
+      if k get onepassworditem argocd-secret >/dev/null 2>&1; then
+        red "  the OnePasswordItem exists but the Secret is still owned by $owner."
+        red "  Argo CD will prune it on its next sync, because the operator stamps its"
+        red "  own tracking label on a Secret it adopts without owning it."
+        red "  Get ahead of that now:  $0 adopt $ENV_NAME"
+      fi ;;
+  esac
 
   # Every key the Secret has must exist in the item, or the next sync deletes it.
   local entries missing=() key value

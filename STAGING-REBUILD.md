@@ -4,7 +4,15 @@ How to destroy the staging VM and bring a new one back with
 `https://staging.petfoodfinder.app` serving a real response over a valid
 certificate.
 
-Steps 1 and 2 are one-time. After that the whole cycle is two commands.
+Steps 1 and 2 are one-time. After that the cycle is two commands plus step 6,
+which is not yet automatic.
+
+> This runbook describes **Hetzner** staging, driven by `scripts/staging.sh`.
+> That environment is currently a template — nothing it describes exists. The
+> staging cluster that actually runs is the OVH one (`scripts/staging-ovh.sh`,
+> `terraform/envs/staging-ovh/`), which syncs the same `k8s/argocd/staging` path
+> and so needs the same step 6. Where a command below takes an environment name,
+> the live one is `staging-ovh`.
 
 ---
 
@@ -156,6 +164,63 @@ curl -sI https://staging.petfoodfinder.app | head -1
 
 ---
 
+## Step 6 — Hand `argocd-secret` to the 1Password operator
+
+Not automatic, and a rebuild is not finished without it. Skip it and Argo CD
+comes back with the password from `argocd_admin_password_bcrypt` in the tfvars
+rather than the one in 1Password — and then loses its password entirely the
+first time the root Application syncs.
+
+Why it cannot simply be declarative: `k8s/argocd/staging/argocd-secret.yaml`
+makes the operator own `argocd-secret`, but the bootstrap has already created
+that Secret from the Helm values. It has to, because Argo CD must be running
+before it can deploy the operator that would otherwise supply the password. So
+the operator *adopts* a Secret it did not create, and in doing so stamps the
+CR's labels onto it — including Argo CD's own tracking label,
+`argocd.argoproj.io/instance: root`. Argo CD's next sync then sees a resource it
+believes it owns and cannot find in git, and prunes it:
+
+```text
+Sync/3 resource /Secret:argocd/argocd-secret obj->nil
+Adding resource result, status: 'Pruned' ... kind=Secret name=argocd-secret
+```
+
+Secrets the operator *creates* carry an ownerReference from birth and are treated
+as children of their CR instead — which is why the other eight in the cluster
+have survived for months. So the fix is to let it create one:
+
+```bash
+eval $(op signin)
+./scripts/setup/argocd-admin-secret.sh adopt  staging-ovh
+./scripts/setup/argocd-admin-secret.sh verify staging-ovh
+```
+
+`adopt` is safe to run at any point, including before the prune has happened. It
+refuses unless the 1Password item carries every key the live Secret has, backs
+the Secret up to `.argocd-backups/` before deleting anything, and fails loudly
+with the restore command if the operator does not rebuild it. `verify` is the
+proof: it bcrypt-checks the plaintext stored in `Argo CD (staging)` against the
+hash the cluster is actually running.
+
+### The first time, on a cluster that has never had this
+
+`create` builds the 1Password item by copying the **live** `argocd-secret`, so
+the first bootstrap must already have happened — there is no way to write
+`server.secretkey` into the item before a cluster exists to take it from. That
+ordering is the one thing here nobody would guess:
+
+```bash
+./scripts/setup/argocd-admin-secret.sh create staging-ovh   # after the first `up`
+git add -A && git commit && git push                        # Argo CD syncs the CR
+./scripts/setup/argocd-admin-secret.sh adopt  staging-ovh
+```
+
+Once the item exists in 1Password it survives every later rebuild — including
+`server.secretkey`, so sessions stop being re-keyed on every rebuild — and only
+`adopt` is needed.
+
+---
+
 ## When it does not come up
 
 `verify` names the pod behind each failing host and its last Warning event. The
@@ -169,6 +234,8 @@ common ones:
 | certificates stuck `READY=False` | stale ACME challenges from before the token existed | `./scripts/certs.sh unstick` |
 | `argocd-staging` returns 502 | the ingress is on port 443 | must be port 80: the bootstrap sets `server.insecure`, so argocd-server speaks plain HTTP |
 | Traefik LoadBalancer stuck `<pending>` | MetalLB pool does not match the real address | `./scripts/setup/set-env-ip.sh staging <ip>`, commit, push |
+| cannot log into `argocd-staging`; `argocd-secret` missing | the CR synced and Argo CD pruned the adopted Secret | step 6 |
+| logging in still wants the old password | the operator has not rebuilt the Secret yet | `argocd-admin-secret.sh verify staging-ovh` |
 
 Useful:
 
@@ -182,6 +249,18 @@ Useful:
 ```
 
 ---
+
+## Automating step 6
+
+The same shape as step 4's automation below: after applying the root
+Application, the bootstrap could wait for the `argocd-secret` OnePasswordItem to
+report `Ready`, then delete the Helm-created Secret so the operator rebuilds it
+as owner, restoring from a backup if it does not come back. Non-fatal, so a slow
+sync does not fail the apply.
+
+It is not implemented, because that code would run on every `terraform apply`
+that re-runs the bootstrap, and the failure mode of getting it wrong is a
+cluster with no admin password.
 
 ## Automating step 4
 
