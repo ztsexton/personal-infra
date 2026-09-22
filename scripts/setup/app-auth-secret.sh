@@ -110,11 +110,39 @@ for i in items:
   fi
   local f
   for f in "${FIELDS[@]}"; do
-    FIELD="$f" printf '  %-22s %s\n' "$f" "$(FIELD="$f" field_shape "$item")"
+    FIELD="$f" printf '  %-28s %s\n' "$f" "$(FIELD="$f" field_shape "$item")"
   done
+
+  # Everything actually on the item, not just the fields this script knows
+  # about. FIELDS is what it manages; the item is what the operator syncs, and
+  # the two drift the moment a field is added by hand. Only the second one
+  # decides what a pod can read, so it is the one worth seeing.
   echo
-  echo "  The cluster reads this through the OnePasswordItem CR at"
-  echo "  k8s/apps/overlays/staging/ballroom-progress-tracker/onepassword-secret.yaml"
+  step "every field on the item (this is what the operator syncs)"
+  op item get "$item" --vault "$VAULT" --format json --reveal 2>/dev/null | "$PY" -c '
+import json, sys
+raw = sys.stdin.read().strip()
+if not raw:
+    print("  UNREADABLE"); sys.exit()
+try:
+    d = json.loads(raw)
+except json.JSONDecodeError:
+    print("  UNREADABLE"); sys.exit()
+seen = 0
+for fl in d.get("fields", []):
+    label = fl.get("label") or fl.get("id") or ""
+    if not label or label == "notesPlain":
+        continue
+    val = fl.get("value") or ""
+    print("  %-28s %s" % (label, ("%d chars" % len(val)) if val else "EMPTY"))
+    seen += 1
+if not seen:
+    print("  (no fields)")'
+
+  echo
+  echo "  Each field becomes a key of the same-named Kubernetes secret, so a pod"
+  echo "  can read any of them. The cluster reads this through the OnePasswordItem"
+  echo "  CR at k8s/apps/overlays/staging/ballroom-progress-tracker/onepassword-secret.yaml"
 }
 
 # Write the value with an assignment statement.
