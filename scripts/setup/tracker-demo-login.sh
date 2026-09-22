@@ -4,6 +4,7 @@
 #   ./scripts/setup/tracker-demo-login.sh show
 #   ./scripts/setup/tracker-demo-login.sh check
 #   ./scripts/setup/tracker-demo-login.sh repair
+#   ./scripts/setup/tracker-demo-login.sh demo-password
 #
 # ballroom-progress-tracker bootstraps its demo studio and one admin at app
 # startup (src/instrumentation.ts), from BOOTSTRAP_ADMIN_EMAIL and
@@ -48,6 +49,34 @@ APP_URL="${TRACKER_URL:-https://tracker-staging.zachsexton.com}"
 NAMESPACE=web
 DBNAME=ballroom_progress
 BACKUP_DIR="${BACKUP_DIR:-$REPO/.argocd-backups}"
+
+# --- the six demo accounts -----------------------------------------------------
+#
+# These are not this repo's invention. The app declares them in
+# src/server/demo-tenant-spec.ts (DEMO_ACCOUNTS: admin, instructor, student,
+# dualRole, dualAdmin, platformAdmin) and reconciles the database to them on
+# every start, in every environment. `npm run demo:1password` writes one
+# 1Password Login item per account and gives them all ONE shared password.
+#
+# The app refuses to create them when NODE_ENV=production unless
+# DEMO_TENANT_PASSWORD is set, rather than putting the well-known development
+# password on accounts that administer a live studio. That refusal is why
+# staging had no demo accounts:
+#
+#   demo_tenant.skipped -- NODE_ENV=production and DEMO_TENANT_PASSWORD is not
+#   set -- refusing to create demo accounts with the well-known development
+#   password.
+#
+# So nothing here creates accounts. The only missing link was infrastructural:
+# the shared password lives in the demo vault, and the cluster reads a different
+# item. `demo-password` copies it across into the operator-synced item so the
+# deployment can hand it to the app, which then does the work itself.
+DEMO_VAULT="${DEMO_OP_VAULT:-Dev Vault}"
+DEMO_ENV_LABEL="${DEMO_ENV_LABEL:-staging}"
+# Title format is the app's, from itemTitle() in sync-1password-demo-accounts.ts.
+# Any of the six carries the same password; the admin is just the stable pick.
+DEMO_REF_ITEM="${DEMO_REF_ITEM:-Ballroom demo — Alex Admin ($DEMO_ENV_LABEL)}"
+DEMO_FIELD="DEMO_TENANT_PASSWORD"
 
 red()   { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }
 green() { printf '\033[0;32m%s\033[0m\n' "$*"; }
@@ -275,10 +304,81 @@ cmd_repair() {
   The remaining route is to reset the password through the app itself."
 }
 
+# op parses a field assignment as [<section>.]<field>=value, so a period in a
+# name has to be escaped. No period here today, but the next field added may
+# have one and the failure is silent.
+esc_label() { printf '%s' "$1" | sed 's/\./\\./g'; }
+
+cmd_demo_password() {
+  need_session
+
+  step "reading the shared demo password from '$DEMO_REF_ITEM'"
+  local pw
+  pw=$(op item get "$DEMO_REF_ITEM" --vault "$DEMO_VAULT" --fields password --reveal 2>/dev/null | tr -d '\n')
+  [ -n "$pw" ] || die "could not read a password from '$DEMO_REF_ITEM' in vault '$DEMO_VAULT'.
+  Generate the demo credentials first, in the tracker repo:
+    npm run demo:1password -- --env $DEMO_ENV_LABEL --generate
+  Then re-run this. Override the lookup with DEMO_OP_VAULT / DEMO_ENV_LABEL."
+  green "  found it (${#pw} chars, not shown)"
+
+  step "writing it to '$ITEM' in vault '$VAULT' as $DEMO_FIELD"
+  if op item get "$ITEM" --vault "$VAULT" >/dev/null 2>&1; then
+    op item edit "$ITEM" --vault "$VAULT" "$(esc_label "$DEMO_FIELD")[password]=$pw" >/dev/null \
+      || die "op item edit failed"
+  else
+    die "'$ITEM' does not exist in vault '$VAULT' -- create it with:
+    ./scripts/setup/app-auth-secret.sh create"
+  fi
+
+  # op has been seen to exit 0 having written nothing, so the value is read back
+  # rather than believed.
+  local back
+  back=$(op item get "$ITEM" --vault "$VAULT" --format json --reveal 2>/dev/null | FIELD="$DEMO_FIELD" "$PY" -c '
+import json, os, sys
+want = os.environ["FIELD"]
+raw = sys.stdin.read().strip()
+if not raw:
+    sys.exit(0)
+for f in json.loads(raw).get("fields", []):
+    if (f.get("label") or f.get("id")) == want:
+        sys.stdout.write(f.get("value") or "")
+        break')
+  [ "$back" = "$pw" ] || die "wrote $DEMO_FIELD but it does not read back the same value"
+  green "  verified: $DEMO_FIELD is ${#back} chars in '$ITEM'"
+
+  echo
+  echo "The operator syncs it into the ballroom-progress-tracker-auth Secret"
+  echo "within a minute. The deployment already references it, so the next pod"
+  echo "gets it and the app creates all six demo accounts at startup."
+  echo
+  echo "Confirm, once the pod has rolled:"
+  echo "  $0 demo-check"
+}
+
+# Did the app actually build the demo tenant? Its own reconciler is the thing
+# doing the work, so this asks the database rather than trusting a sync.
+cmd_demo_check() {
+  need_cluster
+  step "demo accounts in the database"
+  printf 'SELECT u.email, m.roles FROM "user" u LEFT JOIN studio_membership m ON m."userId"=u.id ORDER BY u.email;\n' \
+    | psql_stdin | while IFS='|' read -r email roles; do
+        [ -n "$email" ] || continue
+        printf '  %-32s %s\n' "$email" "${roles:-<no membership>}"
+      done
+  echo
+  echo "Expected once DEMO_TENANT_PASSWORD reaches the pod: six @example.com"
+  echo "accounts (admin, instructor, student, dualRole, dualAdmin, platformAdmin)"
+  echo "alongside the bootstrap owner. If they are absent, the reason is in the"
+  echo "pod log:"
+  echo "  kubectl --kubeconfig $KUBECONFIG_PATH -n $NAMESPACE logs deploy/ballroom-progress-tracker | grep demo_tenant"
+}
+
 case "${1:-}" in
   show)   cmd_show ;;
   check)  cmd_check ;;
   repair) cmd_repair ;;
+  demo-password) cmd_demo_password ;;
+  demo-check)    cmd_demo_check ;;
   *)
     cat >&2 <<EOF
 usage: $0 <command>
@@ -288,6 +388,10 @@ usage: $0 <command>
   check    actually sign in with the stored password and say whether it works
   repair   rewrite the demo admin's hash to the 1Password value, then prove it
            by signing in; restores the old hash automatically if it does not
+
+  demo-password  copy the shared demo-account password from the demo vault into
+                 the operator-synced item, so the app can build the demo tenant
+  demo-check     which accounts the app has actually created
 
   env      TRACKER_ENV (default staging-ovh), TRACKER_URL, OP_ITEM, OP_VAULT
 

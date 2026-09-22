@@ -8,30 +8,32 @@ tracker-staging.zachsexton.com and all 9 staging hosts serve over valid TLS.
 
 ---
 
-## 1. The demo student account does not exist
+## 1. Give the app DEMO_TENANT_PASSWORD so it builds the demo tenant
 
-The **admin** login is fine — `tracker-demo-login.sh check` signs in with the
-value in `ballroom-progress-tracker-auth` / `BOOTSTRAP_ADMIN_PASSWORD`, so the
-earlier guess that it had been rotated out from under the database was wrong.
-The item's version 3 was other fields changing.
+Nothing is broken and nothing needs writing. The app already declares six demo
+accounts in `src/server/demo-tenant-spec.ts` and reconciles the database to them
+on every start, in every environment. It refuses to do it here, and says so:
 
-What is missing is the demo *student*. `person@demo.com` was invited on
-2026-09-09 22:54 with role `{STUDENT}`, the invitation expired 2026-09-16
-without being accepted, and no `user` or `account` row was ever created — so a
-password kept for it in 1Password has never had an account to open. The rest of
-the demo data is empty as well: `student_profile`, `student_assignment` and
-`lesson_record` are all 0 rows.
+```text
+demo_tenant.skipped — NODE_ENV=production and DEMO_TENANT_PASSWORD is not set —
+refusing to create demo accounts with the well-known development password.
+```
 
-The app-supported route, now that the admin login works: sign in at
-`https://tracker-staging.zachsexton.com` as `zsexton2011@gmail.com`, re-invite
-`person@demo.com`, accept the invitation and set its password to the value in
-1Password. Creating the rows directly in Postgres would skip whatever the invite
-flow sets up for a STUDENT, which is why it is not the first choice.
+That refusal is correct: those accounts administer a live studio. The only
+missing piece was infrastructural — the shared password lives in the demo vault
+and the cluster reads `ballroom-progress-tracker-auth`.
 
 ```bash
 eval $(op signin)
-./scripts/setup/tracker-demo-login.sh check    # admin login; expected to pass
+# in the tracker repo, if the demo credentials do not exist for staging yet:
+#   npm run demo:1password -- --env staging --generate
+./scripts/setup/tracker-demo-login.sh demo-password   # copy it to the synced item
+git push                                              # deployment already references it
+./scripts/setup/tracker-demo-login.sh demo-check      # six @example.com accounts
 ```
+
+The admin login (`BOOTSTRAP_ADMIN_PASSWORD`) was never broken — `check` signs in
+with it. The earlier note claiming otherwise was wrong.
 
 ---
 
