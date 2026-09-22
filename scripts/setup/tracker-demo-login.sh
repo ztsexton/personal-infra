@@ -122,26 +122,46 @@ print("%s:%s" % (salt, key.hex()))'
 # A real sign-in against the running app. Better Auth answers 200 with a session
 # and 401 when the password is wrong, so this distinguishes "the vault value
 # works" from "the vault value is merely present".
+# Every variable goes in the assignment PREFIX. Putting one after `-c <script>`
+# makes it an argument to python rather than an environment variable, so
+# os.environ raises KeyError -- and this function used to swallow that into
+# "could not reach the sign-in endpoint", which sent someone looking at the
+# cluster for a bug that was in this file.
+#
+# SIGNIN_ERR carries the real reason out, so a failure to reach the app names
+# itself instead of being guessed at.
+SIGNIN_ERR=""
 try_signin() { # password -> 0 ok, 1 rejected, 2 could not tell
-  local pw="$1" email code
+  local pw="$1" email out code
   email=$(admin_email)
-  [ -n "$email" ] || return 2
-  code=$(PW="$pw" EMAIL="$email" "$PY" -c '
-import json, os, sys, urllib.request, urllib.error
+  [ -n "$email" ] || { SIGNIN_ERR="the deployment declares no BOOTSTRAP_ADMIN_EMAIL"; return 2; }
+
+  # "<code> <detail>" on one line; nothing is suppressed.
+  out=$(PW="$pw" EMAIL="$email" URL="$APP_URL" "$PY" -c '
+import json, os, urllib.request, urllib.error
+url = os.environ["URL"].rstrip("/")
 body = json.dumps({"email": os.environ["EMAIL"], "password": os.environ["PW"]}).encode()
 req = urllib.request.Request(
-    os.environ["URL"] + "/api/auth/sign-in/email", data=body, method="POST",
-    headers={"Content-Type": "application/json", "Origin": os.environ["URL"]})
+    url + "/api/auth/sign-in/email", data=body, method="POST",
+    headers={"Content-Type": "application/json", "Origin": url})
 try:
     with urllib.request.urlopen(req, timeout=25) as r:
-        print(r.status)
+        print("%d ok" % r.status)
 except urllib.error.HTTPError as e:
-    print(e.code)
-except Exception:
-    print(0)' URL="$APP_URL" 2>/dev/null || echo 0)
+    detail = ""
+    try:
+        detail = e.read()[:160].decode("utf-8", "replace").replace("\n", " ")
+    except Exception:
+        pass
+    print("%d %s" % (e.code, detail))
+except Exception as ex:
+    print("0 %s: %s" % (type(ex).__name__, ex))' 2>&1) || out="0 python failed: $out"
+
+  code=${out%% *}
+  SIGNIN_ERR=${out#* }
   case "$code" in
     200|201) return 0 ;;
-    401|403|400) return 1 ;;
+    400|401|403) return 1 ;;
     *) return 2 ;;
   esac
 }
@@ -191,7 +211,8 @@ cmd_check() {
     1) red   "  rejected: the password in 1Password is NOT the one in the database."
        red   "  fix it with:  $0 repair"
        return 1 ;;
-    *) warn  "  could not reach the sign-in endpoint; is $APP_URL serving?"
+    *) warn  "  could not get a verdict from $APP_URL"
+       warn  "  $SIGNIN_ERR"
        return 2 ;;
   esac
 }
@@ -210,7 +231,8 @@ cmd_repair() {
   local rc=0
   try_signin "$pw" || rc=$?
   if [ "$rc" = "0" ]; then green "  the stored password already signs in -- nothing to do"; return 0; fi
-  [ "$rc" = "1" ] || die "could not reach $APP_URL to test a sign-in; not touching the database"
+  [ "$rc" = "1" ] || die "could not get a verdict from $APP_URL, so the database is untouched.
+  $SIGNIN_ERR"
 
   mkdir -p "$BACKUP_DIR"; chmod 700 "$BACKUP_DIR"
   local backup="$BACKUP_DIR/tracker-credential-$ENV_NAME-$(date -u +%Y%m%dT%H%M%SZ).sql"
