@@ -8,7 +8,28 @@ tracker-staging.zachsexton.com and all 9 staging hosts serve over valid TLS.
 
 ---
 
-## 1. Confirm the OVH consumer key is in 1Password
+## 1. Make the demo studio login work
+
+The password in `ballroom-progress-tracker-auth` / `BOOTSTRAP_ADMIN_PASSWORD`
+is probably not the password that signs in. The app bootstraps its demo studio
+and admin at startup and that bootstrap is **create-only** — once the admin
+exists it does nothing, so rotating the value in 1Password never reached the
+database. The credential row was written 2026-09-09 03:29:38 and its
+`updatedAt` has not moved since, while the vault item is on version 3.
+
+```bash
+eval $(op signin)
+./scripts/setup/tracker-demo-login.sh check    # does the stored password sign in?
+./scripts/setup/tracker-demo-login.sh repair   # only if check says no
+```
+
+`repair` rewrites the admin's hash to the vault value and then proves it by
+signing in for real, restoring the old hash if that fails. Sign in at
+`https://tracker-staging.zachsexton.com` as `zsexton2011@gmail.com`.
+
+---
+
+## 2. Confirm the OVH consumer key is in 1Password
 
 The working consumer key exists **only** in
 `terraform/envs/staging-ovh/terraform.tfvars`, which is gitignored. Lose that
