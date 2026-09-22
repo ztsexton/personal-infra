@@ -359,6 +359,47 @@ for f in json.loads(raw).get("fields", []):
 # doing the work, so this asks the database rather than trusting a sync.
 cmd_demo_check() {
   need_cluster
+
+  # Walk the chain before reporting the accounts. "They are not there" is true
+  # at every broken link and says nothing about which one, which is exactly how
+  # someone ends up reading a pod log that never changed.
+  step "the chain from 1Password to the pod"
+  local ok=1
+
+  local skeys
+  skeys=$(k -n "$NAMESPACE" get secret ballroom-progress-tracker-auth \
+    -o jsonpath='{.data}' 2>/dev/null | tr ',' '\n' | grep -o '"[A-Z_]*"' | tr -d '"' || true)
+  if printf '%s\n' "$skeys" | grep -qx "$DEMO_FIELD"; then
+    green "  1. Secret carries $DEMO_FIELD"
+  else
+    red   "  1. Secret does NOT carry $DEMO_FIELD"
+    red   "     run:  $0 demo-password"
+    ok=0
+  fi
+
+  if k -n "$NAMESPACE" get deploy ballroom-progress-tracker \
+      -o jsonpath='{.spec.template.spec.containers[0].env[*].name}' 2>/dev/null \
+      | tr ' ' '\n' | grep -qx "$DEMO_FIELD"; then
+    green "  2. Deployment references $DEMO_FIELD"
+  else
+    red   "  2. Deployment does NOT reference $DEMO_FIELD"
+    red   "     the manifest change is committed but not pushed -- git push,"
+    red   "     then let Argo CD sync"
+    ok=0
+  fi
+
+  local podenv
+  podenv=$(k -n "$NAMESPACE" get pods -l app=ballroom-progress-tracker \
+    -o jsonpath='{.items[0].spec.containers[0].env[*].name}' 2>/dev/null | tr ' ' '\n' || true)
+  if printf '%s\n' "$podenv" | grep -qx "$DEMO_FIELD"; then
+    green "  3. The running pod has it"
+  else
+    red   "  3. The running pod does NOT have it (env is resolved at pod creation)"
+    [ "$ok" = "1" ] && red "     roll it:  kubectl --kubeconfig $KUBECONFIG_PATH -n $NAMESPACE rollout restart deploy/ballroom-progress-tracker"
+    ok=0
+  fi
+
+  echo
   step "demo accounts in the database"
   printf 'SELECT u.email, m.roles FROM "user" u LEFT JOIN studio_membership m ON m."userId"=u.id ORDER BY u.email;\n' \
     | psql_stdin | while IFS='|' read -r email roles; do
@@ -366,11 +407,14 @@ cmd_demo_check() {
         printf '  %-32s %s\n' "$email" "${roles:-<no membership>}"
       done
   echo
-  echo "Expected once DEMO_TENANT_PASSWORD reaches the pod: six @example.com"
-  echo "accounts (admin, instructor, student, dualRole, dualAdmin, platformAdmin)"
-  echo "alongside the bootstrap owner. If they are absent, the reason is in the"
-  echo "pod log:"
-  echo "  kubectl --kubeconfig $KUBECONFIG_PATH -n $NAMESPACE logs deploy/ballroom-progress-tracker | grep demo_tenant"
+  echo "Expected: six @example.com accounts (admin, instructor, student,"
+  echo "dualRole, dualAdmin, platformAdmin) alongside the bootstrap owner."
+  if [ "$ok" = "1" ]; then
+    echo
+    echo "The chain above is complete, so if they are still absent the app itself"
+    echo "declined, and it says why:"
+    echo "  kubectl --kubeconfig $KUBECONFIG_PATH -n $NAMESPACE logs deploy/ballroom-progress-tracker | grep demo_tenant"
+  fi
 }
 
 case "${1:-}" in
