@@ -3,29 +3,35 @@
 Everything waiting on you, in the order worth doing it. Claude keeps this file
 updated — if something here is stale, that is a bug in the file.
 
-Last updated: 2026-09-09. ballroom-progress-tracker is live at
+Last updated: 2026-09-22. ballroom-progress-tracker is live at
 tracker-staging.zachsexton.com and all 9 staging hosts serve over valid TLS.
 
 ---
 
-## 1. Make the demo studio login work
+## 1. The demo student account does not exist
 
-The password in `ballroom-progress-tracker-auth` / `BOOTSTRAP_ADMIN_PASSWORD`
-is probably not the password that signs in. The app bootstraps its demo studio
-and admin at startup and that bootstrap is **create-only** — once the admin
-exists it does nothing, so rotating the value in 1Password never reached the
-database. The credential row was written 2026-09-09 03:29:38 and its
-`updatedAt` has not moved since, while the vault item is on version 3.
+The **admin** login is fine — `tracker-demo-login.sh check` signs in with the
+value in `ballroom-progress-tracker-auth` / `BOOTSTRAP_ADMIN_PASSWORD`, so the
+earlier guess that it had been rotated out from under the database was wrong.
+The item's version 3 was other fields changing.
+
+What is missing is the demo *student*. `person@demo.com` was invited on
+2026-09-09 22:54 with role `{STUDENT}`, the invitation expired 2026-09-16
+without being accepted, and no `user` or `account` row was ever created — so a
+password kept for it in 1Password has never had an account to open. The rest of
+the demo data is empty as well: `student_profile`, `student_assignment` and
+`lesson_record` are all 0 rows.
+
+The app-supported route, now that the admin login works: sign in at
+`https://tracker-staging.zachsexton.com` as `zsexton2011@gmail.com`, re-invite
+`person@demo.com`, accept the invitation and set its password to the value in
+1Password. Creating the rows directly in Postgres would skip whatever the invite
+flow sets up for a STUDENT, which is why it is not the first choice.
 
 ```bash
 eval $(op signin)
-./scripts/setup/tracker-demo-login.sh check    # does the stored password sign in?
-./scripts/setup/tracker-demo-login.sh repair   # only if check says no
+./scripts/setup/tracker-demo-login.sh check    # admin login; expected to pass
 ```
-
-`repair` rewrites the admin's hash to the vault value and then proves it by
-signing in for real, restoring the old hash if that fails. Sign in at
-`https://tracker-staging.zachsexton.com` as `zsexton2011@gmail.com`.
 
 ---
 
