@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: ghcr.io/ztsexton/ballroom-competition-web:master-e416d2c
+          image: ghcr.io/ztsexton/ballroom-competition-web:master-7572fe9
           imagePullPolicy: Always
           env:
             - name: PORT
